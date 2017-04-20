@@ -1,0 +1,2 @@
+[workspace]
+members = [ "vcpkg", "vcpkg_cli" ]

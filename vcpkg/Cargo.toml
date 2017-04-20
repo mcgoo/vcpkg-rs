@@ -1,0 +1,13 @@
+[package]
+name = "vcpkg"
+version = "0.0.1"
+authors = ["mcgoo <mcgoo@users.noreply.github.com>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/mcgoo/vcpkg-rs"
+description = """
+A library to find native dependencies in a vcpkg at build tree
+time in order to be used in Cargo build scripts.
+"""
+
+[dependencies]
+
