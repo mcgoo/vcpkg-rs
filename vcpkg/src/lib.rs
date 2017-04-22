@@ -3,6 +3,10 @@
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
+//! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg installation. If
+//! it is not set, vcpkg will use the user-wide installation if one has been
+//! set up with `vcpkg integrate install`
+//!
 //! * `FOO_NO_VCPKG` - if set, vcpkg will not attempt to find the
 //! library named `foo`.
 //!
@@ -109,6 +113,20 @@ pub struct Library {
     pub cargo_metadata: Vec<String>,
 }
 
+enum MSVCTarget {
+    X86,
+    X64,
+}
+
+impl fmt::Display for MSVCTarget {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            MSVCTarget::X86 => write!(f, "x86-windows"),
+            MSVCTarget::X64 => write!(f, "x64-windows"),
+        }
+    }
+}
+
 #[derive(Debug)] // need Display?
 pub enum Error {
     /// Aborted because of `*_NO_VCPKG` environment variable.
@@ -119,7 +137,12 @@ pub enum Error {
     /// Only MSVC ABI is supported
     NotMSVC,
 
-    // VcpkgNotFound()
+    /// Can't find a vcpkg tree
+    VcpkgNotFound(String),
+
+    /// Library not found in vcpkg tree
+    LibNotFound(String),
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -129,8 +152,8 @@ impl error::Error for Error {
         match *self {
             Error::EnvNoPkgConfig(_) => "vcpkg requested to be aborted",
             Error::NotMSVC => "vcpkg only can only find libraries for MSVC ABI 64 bit builds",
-            // Error::Command { .. } => "failed to run vcpkg",
-            // Error::Failure { .. } => "vcpkg did not exit sucessfully",
+            Error::VcpkgNotFound(_) => "could not find vcpkg tree",
+            Error::LibNotFound(_) => "could not find library in vcpkg tree",
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -149,23 +172,12 @@ impl fmt::Display for Error {
             Error::EnvNoPkgConfig(ref name) => write!(f, "Aborted because {} is set", name),
             Error::NotMSVC => {
                 write!(f,
-                       "vcpkg can only find libraries built for the 64 bit MSVC ABI.")
+                       "this vcpkg build helper can only find libraries built for the MSVC ABI.")
+            } 
+            Error::VcpkgNotFound(ref detail) => write!(f, "Could not find vcpkg tree: {}", detail),
+            Error::LibNotFound(ref detail) => {
+                write!(f, "Could not find library in vcpkg tree {}", detail)
             }
-            // Error::Command { ref command, ref cause } => {
-            //     write!(f, "Failed to run `{}`: {}", command, cause)
-            // }
-            // Error::Failure { ref command, ref output } => {
-            //     let stdout = str::from_utf8(&output.stdout).unwrap();
-            //     let stderr = str::from_utf8(&output.stderr).unwrap();
-            //     try!(write!(f, "`{}` did not exit successfully: {}", command, output.status));
-            //     if !stdout.is_empty() {
-            //         try!(write!(f, "\n--- stdout\n{}", stdout));
-            //     }
-            //     if !stderr.is_empty() {
-            //         try!(write!(f, "\n--- stderr\n{}", stderr));
-            //     }
-            //     Ok(())
-            // }
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -251,15 +263,9 @@ impl Config {
         let abort_var_name = format!("{}_NO_VCPKG", envify(name));
         if env::var_os(&abort_var_name).is_some() {
             return Err(Error::EnvNoPkgConfig(abort_var_name));
-        } else if !target_supported() {
-            return Err(Error::NotMSVC);
         }
 
-        // for the moment bail out if it's not an x86_64-pc-windows-msvc build
-        let target = env::var("TARGET").unwrap_or(String::new());
-        if !target.contains("x86_64-pc-windows-msvc") {
-            return Err(Error::NotMSVC);
-        }
+        let msvc_arch = msvc_target()?;
 
         let vcpkg_root = find_vcpkg_root()?;
         validate_vcpkg_root(&vcpkg_root)?;
@@ -270,14 +276,19 @@ impl Config {
 
         let mut base = vcpkg_root;
         base.push("installed");
-        if static_lib {
-            base.push("x64-windows-static");
+        let static_appendage = if static_lib {
+            "-static"
         } else {
-            base.push("x64-windows");
-        }
-        let base_str = base.to_str().expect("failed to convert string type");
+            ""
+        };
 
-        lib.cargo_metadata.push(format!("cargo:rustc-link-search=native={}\\lib", base_str));
+        base.push(format!("{}{}", msvc_arch.to_string(), static_appendage));
+
+        let lib_path = base.join("lib");
+        let include_path = base.join("include");
+        lib.cargo_metadata
+            .push(format!("cargo:rustc-link-search=native={}",
+                          lib_path.to_str().expect("failed to convert string type")));
 
         if static_lib {
             lib.cargo_metadata.push(format!("cargo:rustc-link-lib=static={}", name));
@@ -285,10 +296,8 @@ impl Config {
             lib.cargo_metadata.push(format!("cargo:rustc-link-lib={}", name));
         }
 
-        let val = format!("{}\\include", base_str);
-        lib.include_paths.push(PathBuf::from(val));
-        let lib_path = format!("{}\\lib", base_str);
-        lib.link_paths.push(PathBuf::from(&lib_path));
+        lib.include_paths.push(include_path);
+        lib.link_paths.push(lib_path.clone());
 
         // actually verify that the library exists
         let mut lib_location = PathBuf::from(lib_path);
@@ -354,7 +363,14 @@ fn envify(name: &str) -> String {
         .collect()
 }
 
-pub fn target_supported() -> bool {
+fn msvc_target() -> Result<MSVCTarget, Error> {
     let target = env::var("TARGET").unwrap_or(String::new());
-    target.contains("msvc")
+    if !target.contains("-pc-windows-msvc") {
+        Err(Error::NotMSVC)
+    } else if target.starts_with("x86_64-") {
+        Ok(MSVCTarget::X64)
+    } else {
+        // everything else is x86
+        Ok(MSVCTarget::X86)
+    }
 }
