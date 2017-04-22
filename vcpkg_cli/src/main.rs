@@ -28,8 +28,6 @@ fn main() {
                 .takes_value(true)
                 .possible_values(&["dll", "static"])));
 
-    // allow forcing static or dll
-
     let matches = app.get_matches();
 
     // set TARGET as if we are running under cargo
@@ -78,20 +76,11 @@ fn main() {
                         println!("\t{}", line);
                     }
                 }
-
-
-
             }
             Err(err) => {
                 println!("Failed:  {}", err);
 
             }
         }
-
     }
-    // } else {
-    //     app.usage();
-    // }
-
-
 }
