@@ -50,7 +50,7 @@
 use std::ascii::AsciiExt;
 use std::env;
 use std::error;
-use std::fs::File;
+use std::fs::{self, File};
 use std::fmt;
 use std::io::{BufRead, BufReader};
 use std::path::{PathBuf, Path};
@@ -59,6 +59,7 @@ use std::path::{PathBuf, Path};
 pub struct Config {
     statik: Option<bool>,
     cargo_metadata: bool,
+    required_libs: Vec<LibNames>, // copy_to_target: bool,
 }
 
 #[derive(Debug)]
@@ -66,6 +67,10 @@ pub struct Library {
     pub link_paths: Vec<PathBuf>,
     pub include_paths: Vec<PathBuf>,
     pub cargo_metadata: Vec<String>,
+
+    /// libraries found are static
+    pub is_static: bool,
+    pub found_dlls: Vec<PathBuf>,
 }
 
 enum MSVCTarget {
@@ -109,6 +114,7 @@ impl error::Error for Error {
             Error::NotMSVC => "vcpkg only can only find libraries for MSVC ABI 64 bit builds",
             Error::VcpkgNotFound(_) => "could not find vcpkg tree",
             Error::LibNotFound(_) => "could not find library in vcpkg tree",
+            // Error::LibNotFound(_) => "could not find library in vcpkg tree",
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -151,26 +157,43 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
 
     // see if there is a per-user vcpkg tree that has been integrated into msbuild
     // using `vcpkg integrate install`
-    let local_app_data = env::var("LOCALAPPDATA").map_err(|_| Error::NotMSVC)?; // not present or can't utf8
+    let local_app_data = env::var("LOCALAPPDATA")
+        .map_err(|_| {
+            Error::VcpkgNotFound("Failed to read LOCALAPPDATA environment variable".to_string())
+        })?; // not present or can't utf8
     let vcpkg_user_targets_path =
         Path::new(local_app_data.as_str()).join("vcpkg").join("vcpkg.user.targets");
 
-    let file = File::open(vcpkg_user_targets_path).map_err(|_| Error::NotMSVC)?; // TODO:
+    let file = File::open(vcpkg_user_targets_path.clone())
+        .map_err(|_| {
+            Error::VcpkgNotFound("No vcpkg.user.targets found. run 'vcpkg integrate install' or \
+                                  set VCPKG_ROOT environment variable."
+                .to_string())
+        })?;
     let file = BufReader::new(&file);
 
     for line in file.lines() {
-        let line = line.map_err(|_| Error::NotMSVC)?;
+        let line = line.map_err(|_| {
+                Error::VcpkgNotFound(format!("Parsing of {} failed.",
+                                             vcpkg_user_targets_path.to_string_lossy().to_owned()))
+            })?;
         let mut split = line.split("Project=\"");
         split.next(); // eat anything before Project="
         if let Some(found) = split.next() {
             // " is illegal in a Windows pathname
             if let Some(found) = found.split_terminator("\"").next() {
-                return Ok(PathBuf::from(found));
+                let mut vcpkg_root = PathBuf::from(found);
+                if !(vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop()) {
+                    return Err(Error::VcpkgNotFound(format!("Could not find vcpkg root above {}",
+                                                            found)));
+                }
+                return Ok(vcpkg_root);
             }
         }
     }
 
-    Err(Error::NotMSVC)
+    Err(Error::VcpkgNotFound(format!("Project location not found parsing {}.",
+                                     vcpkg_user_targets_path.to_string_lossy().to_owned())))
 }
 
 fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
@@ -181,15 +204,33 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
     if vcpkg_root_path.exists() {
         Ok(())
     } else {
-        Err(Error::NotMSVC)
+        Err(Error::VcpkgNotFound(format!("Could not find vcpkg root at {}",
+                                         vcpkg_root_path.to_string_lossy())))
     }
+}
+
+/// names of the libraries
+struct LibNames {
+    lib_stem: String,
+    dll_stem: String,
 }
 
 impl Config {
     pub fn new() -> Config {
         Config {
+            // override environment selection of static or dll
             statik: None,
+
+            // should the cargo metadata actually be emitted
             cargo_metadata: true,
+/*
+            // should include lines be included in the cargo metadata
+            
+            //include_includes: false,
+*/
+            required_libs: Vec::new(),
+
+           // copy_to_target: false,
         }
     }
 
@@ -202,6 +243,36 @@ impl Config {
         self
     }
 
+    /// Override the name of the library to look for if it differs from the package name.
+    ///
+    /// This may be called more than once if multiple libs are required.
+    /// All libs must be found for the probe to succeed. `.probe()` must
+    /// be run with a different configuration to look for libraries under one of several names.
+    /// `.libname("ssleay32")` will look for ssleay32.lib and also ssleay32.dll if
+    /// dynamic linking is selected.
+    pub fn lib_name(&mut self, lib_stem: &str) -> &mut Config {
+        self.required_libs.push(LibNames {
+            lib_stem: lib_stem.to_owned(),
+            dll_stem: lib_stem.to_owned(),
+        });
+        self
+    }
+
+    /// Override the name of the library to look for if it differs from the package name.
+    ///
+    /// This may be called more than once if multiple libs are required.
+    /// All libs must be found for the probe to succeed. `.probe()` must
+    /// be run with a different configuration to look for libraries under one of several names.
+    /// `.lib_names("libcurl_imp","curl")` will look for libcurl_imp.lib and also curl.dll if
+    /// dynamic linking is selected.
+    pub fn lib_names(&mut self, lib_stem: &str, dll_stem: &str) -> &mut Config {
+        self.required_libs.push(LibNames {
+            lib_stem: lib_stem.to_owned(),
+            dll_stem: dll_stem.to_owned(),
+        });
+        self
+    }
+
     /// Define whether metadata should be emitted for cargo allowing it to
     /// automatically link the binary. Defaults to `true`.
     pub fn cargo_metadata(&mut self, cargo_metadata: bool) -> &mut Config {
@@ -209,13 +280,22 @@ impl Config {
         self
     }
 
-    /// Find the library `name` in a vcpkg tree.
+    /// Find the library `port_name` in a vcpkg tree.
     ///
     /// This will use all configuration previously set to select the
     /// architecture and linkage.
-    pub fn probe(&self, name: &str) -> Result<Library, Error> {
+    pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
 
-        let abort_var_name = format!("{}_NO_VCPKG", envify(name));
+        // if no overrides have been selected, then the vcpkg port name
+        // is the the .lib name and the .dll name
+        if self.required_libs.is_empty() {
+            self.required_libs.push(LibNames {
+                lib_stem: port_name.to_owned(),
+                dll_stem: port_name.to_owned(),
+            });
+        }
+
+        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
         if env::var_os(&abort_var_name).is_some() {
             return Err(Error::EnvNoPkgConfig(abort_var_name));
         }
@@ -225,9 +305,9 @@ impl Config {
         let vcpkg_root = find_vcpkg_root()?;
         validate_vcpkg_root(&vcpkg_root)?;
 
-        let mut lib = Library::new();
+        let static_lib = self.is_static(port_name);
 
-        let static_lib = self.is_static(name);
+        let mut lib = Library::new(static_lib);
 
         let mut base = vcpkg_root;
         base.push("installed");
@@ -237,43 +317,81 @@ impl Config {
             ""
         };
 
-        base.push(format!("{}{}", msvc_arch.to_string(), static_appendage));
+        let vcpkg_triple = format!("{}{}", msvc_arch.to_string(), static_appendage);
+        base.push(vcpkg_triple);
 
         let lib_path = base.join("lib");
+        let bin_path = base.join("bin");
         let include_path = base.join("include");
         lib.cargo_metadata
             .push(format!("cargo:rustc-link-search=native={}",
                           lib_path.to_str().expect("failed to convert string type")));
-
-        if static_lib {
-            lib.cargo_metadata.push(format!("cargo:rustc-link-lib=static={}", name));
-        } else {
-            lib.cargo_metadata.push(format!("cargo:rustc-link-lib={}", name));
+        if !static_lib {
+            lib.cargo_metadata
+                .push(format!("cargo:rustc-link-search=native={}",
+                              bin_path.to_str().expect("failed to convert string type")));
         }
-
         lib.include_paths.push(include_path);
         lib.link_paths.push(lib_path.clone());
+        drop(port_name);
+        for required_lib in &self.required_libs {
+            if static_lib {
+                lib.cargo_metadata
+                    .push(format!("cargo:rustc-link-lib=static={}", required_lib.lib_stem));
+            } else {
+                lib.cargo_metadata.push(format!("cargo:rustc-link-lib={}", required_lib.lib_stem));
+            }
 
-        // actually verify that the library exists
-        let mut lib_location = PathBuf::from(lib_path);
-        lib_location.push(name);
-        lib_location.set_extension("lib");
-        println!("{:?}", lib_location);
-        if !lib_location.exists() {
+            // verify that the library exists
+            let mut lib_location = PathBuf::from(lib_path.clone());
+            lib_location.push(required_lib.lib_stem.clone());
+            lib_location.set_extension("lib");
 
-            return Err(Error::NotMSVC);
+            if !lib_location.exists() {
+                return Err(Error::LibNotFound(lib_location.to_string_lossy().into()));
+            }
+
+            // verify that the DLL exists
+            if !static_lib {
+                let mut lib_location = PathBuf::from(bin_path.clone());
+                lib_location.push(required_lib.dll_stem.clone());
+                lib_location.set_extension("dll");
+
+                if !lib_location.exists() {
+                    return Err(Error::LibNotFound(lib_location.to_string_lossy().into()));
+                }
+                lib.found_dlls.push(lib_location);
+            }
         }
 
+        // if self.copy_to_target {
+        //     if let Some(target_dir) = env::var_os("OUT_DIR") {
+        //         for file in &lib.found_dlls {
+        //             let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
+        //             dest_path.push(Path::new(file.file_name().unwrap()));
+        //             fs::copy(file, &dest_path)
+        //                 .map_err(|_| {
+        //                     Error::LibNotFound(format!("Can't copy file {} to {}",
+        //                                                file.to_string_lossy(),
+        //                                                dest_path.to_string_lossy()))
+        //                 })?;
+
+        //             println!("warning: copied {} to {}",
+        //                      file.to_string_lossy(),
+        //                      dest_path.to_string_lossy());
+        //         }
+        //     } else {
+        //         return Err(Error::LibNotFound("Can't copy file".to_owned())); // TODO:
+        //     }
+        // }
 
         if self.cargo_metadata {
             for line in &lib.cargo_metadata {
                 println!("{}", line);
             }
         }
-
         Ok(lib)
     }
-
 
     fn is_static(&self, name: &str) -> bool {
         self.statik.unwrap_or_else(|| infer_static(name))
@@ -281,11 +399,13 @@ impl Config {
 }
 
 impl Library {
-    pub fn new() -> Library {
+    pub fn new(is_static: bool) -> Library {
         Library {
             include_paths: Vec::new(),
             link_paths: Vec::new(),
             cargo_metadata: Vec::new(),
+            is_static: is_static,
+            found_dlls: Vec::new(),
         }
     }
 }
@@ -301,7 +421,7 @@ fn infer_static(name: &str) -> bool {
     } else if env::var_os("VCPKG_ALL_DYNAMIC").is_some() {
         false
     } else {
-        false
+        true
     }
 }
 
