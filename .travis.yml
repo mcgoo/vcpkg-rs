@@ -4,3 +4,6 @@ rust:
   - beta
   - nightly
   - 1.10.0
+script:
+  - cargo build --manifest-path vcpkg/Cargo.toml --verbose
+  - cargo test --manifest-path vcpkg/Cargo.toml --verbose
