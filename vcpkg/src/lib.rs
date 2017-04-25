@@ -157,26 +157,24 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
 
     // see if there is a per-user vcpkg tree that has been integrated into msbuild
     // using `vcpkg integrate install`
-    let local_app_data = env::var("LOCALAPPDATA")
-        .map_err(|_| {
-            Error::VcpkgNotFound("Failed to read LOCALAPPDATA environment variable".to_string())
-        })?; // not present or can't utf8
+    let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| {
+        Error::VcpkgNotFound("Failed to read LOCALAPPDATA environment variable".to_string())
+    })); // not present or can't utf8
     let vcpkg_user_targets_path =
         Path::new(local_app_data.as_str()).join("vcpkg").join("vcpkg.user.targets");
 
-    let file = File::open(vcpkg_user_targets_path.clone())
-        .map_err(|_| {
-            Error::VcpkgNotFound("No vcpkg.user.targets found. run 'vcpkg integrate install' or \
-                                  set VCPKG_ROOT environment variable."
-                .to_string())
-        })?;
+    let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
+        Error::VcpkgNotFound("No vcpkg.user.targets found. run 'vcpkg integrate install' or set \
+                              VCPKG_ROOT environment variable."
+            .to_string())
+    }));
     let file = BufReader::new(&file);
 
     for line in file.lines() {
-        let line = line.map_err(|_| {
-                Error::VcpkgNotFound(format!("Parsing of {} failed.",
-                                             vcpkg_user_targets_path.to_string_lossy().to_owned()))
-            })?;
+        let line = try!(line.map_err(|_| {
+            Error::VcpkgNotFound(format!("Parsing of {} failed.",
+                                         vcpkg_user_targets_path.to_string_lossy().to_owned()))
+        }));
         let mut split = line.split("Project=\"");
         split.next(); // eat anything before Project="
         if let Some(found) = split.next() {
@@ -300,10 +298,10 @@ impl Config {
             return Err(Error::EnvNoPkgConfig(abort_var_name));
         }
 
-        let msvc_arch = msvc_target()?;
+        let msvc_arch = try!(msvc_target());
 
-        let vcpkg_root = find_vcpkg_root()?;
-        validate_vcpkg_root(&vcpkg_root)?;
+        let vcpkg_root = try!(find_vcpkg_root());
+        try!(validate_vcpkg_root(&vcpkg_root));
 
         let static_lib = self.is_static(port_name);
 
