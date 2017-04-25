@@ -50,7 +50,7 @@
 use std::ascii::AsciiExt;
 use std::env;
 use std::error;
-use std::fs::{self, File};
+use std::fs::File;
 use std::fmt;
 use std::io::{BufRead, BufReader};
 use std::path::{PathBuf, Path};
