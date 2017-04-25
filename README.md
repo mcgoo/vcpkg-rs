@@ -1,4 +1,4 @@
-# vcpkg-rs
+# vcpkg-rs [![Build Status](https://travis-ci.org/mcgoo/vcpkg-rs.svg?branch=master)](https://travis-ci.org/mcgoo/vcpkg-rs)
 
 [Documentation](https://docs.rs/vcpkg)
 
