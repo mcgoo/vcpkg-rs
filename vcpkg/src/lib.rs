@@ -347,7 +347,7 @@ impl Config {
             lib_location.set_extension("lib");
 
             if !lib_location.exists() {
-                return Err(Error::LibNotFound(lib_location.to_string_lossy().into()));
+                return Err(Error::LibNotFound(lib_location.display().to_string()));
             }
 
             // verify that the DLL exists
@@ -357,7 +357,7 @@ impl Config {
                 lib_location.set_extension("dll");
 
                 if !lib_location.exists() {
-                    return Err(Error::LibNotFound(lib_location.to_string_lossy().into()));
+                    return Err(Error::LibNotFound(lib_location.display().to_string()));
                 }
                 lib.found_dlls.push(lib_location);
             }
