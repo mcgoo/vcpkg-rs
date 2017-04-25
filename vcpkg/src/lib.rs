@@ -1,4 +1,5 @@
-//! A build dependency for Cargo libraries to find libraries in a `vcpkg` tree.
+//! A build dependency for Cargo libraries to find libraries in a
+//! [vcpkg](https://github.com/Microsoft/vcpkg) tree.
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
@@ -35,7 +36,7 @@
 //! There is a companion crate `vcpkg_cli` that allows testing of environment
 //! and flag combinations.
 //!
-//! ```no_run
+//! ```Batchfile
 //! C:\src> vcpkg_cli probe -l static mysqlclient
 //! Found library mysqlclient
 //! Include paths:
