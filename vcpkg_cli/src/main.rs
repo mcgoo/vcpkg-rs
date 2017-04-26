@@ -70,19 +70,26 @@ fn main() {
                     }
                 }
 
+                if !lib.link_paths.is_empty() {
+                    println!("Runtime Library paths:");
+                    for line in &lib.dll_paths {
+                        println!("\t{}", line.as_os_str().to_str().unwrap());
+                    }
+                }
+
                 if !lib.cargo_metadata.is_empty() {
                     println!("Cargo metadata:");
                     for line in &lib.cargo_metadata {
                         println!("\t{}", line);
                     }
                 }
-                if !lib.cargo_metadata.is_empty() {
+                if !lib.found_dlls.is_empty() {
                     println!("Found DLLs:");
                     for line in &lib.found_dlls {
                         println!("\t{}", line.display());
                     }
                 }
-                if !lib.cargo_metadata.is_empty() {
+                if !lib.found_libs.is_empty() {
                     println!("Found libs:");
                     for line in &lib.found_libs {
                         println!("\t{}", line.display());

@@ -1,6 +1,20 @@
 //! A build dependency for Cargo libraries to find libraries in a
 //! [vcpkg](https://github.com/Microsoft/vcpkg) tree.
 //!
+//! The simplest possible usage for a library whose vcpkg port name matches the
+//! name of the lib and DLL that are being looked for looks like this :-
+//! ```rust
+//! vcpkg::probe_library("libgit2").unwrap();
+//! ```
+//!
+//! In practice the .lib and .dll often differ in name from the package itself,
+//! in which case the library names must be specified, like this :-
+//! ```rust
+//! vcpkg::Config::new()
+//!     .lib_names("zlib","zlib1")
+//!     .probe("zlib").unwrap();
+//! ```
+//!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
@@ -58,15 +72,31 @@ use std::path::{PathBuf, Path};
 
 // #[derive(Clone)]
 pub struct Config {
+    /// The type of linkage library to look for. The default of `None`
+    /// will result in the linkage being determined from the process
+    /// environment, defaulting to dynamic if no environment
+    /// variables are set.
     statik: Option<bool>,
+
+    /// should the cargo metadata actually be emitted
     cargo_metadata: bool,
-    required_libs: Vec<LibNames>, // copy_to_target: bool,
+
+    /// libs that must be be found for probing to be considered successful
+    required_libs: Vec<LibNames>,
 }
 
 #[derive(Debug)]
 pub struct Library {
+    /// Paths for the linker to search for static or import libraries
     pub link_paths: Vec<PathBuf>,
+
+    /// Paths to search at runtme to find DLLs
+    pub dll_paths: Vec<PathBuf>,
+
+    /// Paths to search for
     pub include_paths: Vec<PathBuf>,
+
+    /// cargo: metadata lines
     pub cargo_metadata: Vec<String>,
 
     /// libraries found are static
@@ -150,7 +180,7 @@ impl fmt::Display for Error {
     }
 }
 
-pub fn probe_library(name: &str) -> Result<Library, Error> {
+pub fn probe_package(name: &str) -> Result<Library, Error> {
     Config::new().probe(name)
 }
 
@@ -222,19 +252,9 @@ struct LibNames {
 impl Config {
     pub fn new() -> Config {
         Config {
-            // override environment selection of static or dll
             statik: None,
-
-            // should the cargo metadata actually be emitted
             cargo_metadata: true,
-/*
-            // should include lines be included in the cargo metadata
-            
-            //include_includes: false,
-*/
             required_libs: Vec::new(),
-
-           // copy_to_target: false,
         }
     }
 
@@ -327,16 +347,18 @@ impl Config {
         let lib_path = base.join("lib");
         let bin_path = base.join("bin");
         let include_path = base.join("include");
+        lib.include_paths.push(include_path);
+
         lib.cargo_metadata
             .push(format!("cargo:rustc-link-search=native={}",
                           lib_path.to_str().expect("failed to convert string type")));
+        lib.link_paths.push(lib_path.clone());
         if !static_lib {
             lib.cargo_metadata
                 .push(format!("cargo:rustc-link-search=native={}",
                               bin_path.to_str().expect("failed to convert string type")));
+            lib.dll_paths.push(bin_path.clone());
         }
-        lib.include_paths.push(include_path);
-        lib.link_paths.push(lib_path.clone());
         drop(port_name);
         for required_lib in &self.required_libs {
             if static_lib {
@@ -369,27 +391,6 @@ impl Config {
             }
         }
 
-        // if self.copy_to_target {
-        //     if let Some(target_dir) = env::var_os("OUT_DIR") {
-        //         for file in &lib.found_dlls {
-        //             let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
-        //             dest_path.push(Path::new(file.file_name().unwrap()));
-        //             fs::copy(file, &dest_path)
-        //                 .map_err(|_| {
-        //                     Error::LibNotFound(format!("Can't copy file {} to {}",
-        //                                                file.to_string_lossy(),
-        //                                                dest_path.to_string_lossy()))
-        //                 })?;
-
-        //             println!("warning: copied {} to {}",
-        //                      file.to_string_lossy(),
-        //                      dest_path.to_string_lossy());
-        //         }
-        //     } else {
-        //         return Err(Error::LibNotFound("Can't copy file".to_owned())); // TODO:
-        //     }
-        // }
-
         if self.cargo_metadata {
             for line in &lib.cargo_metadata {
                 println!("{}", line);
@@ -406,8 +407,9 @@ impl Config {
 impl Library {
     pub fn new(is_static: bool) -> Library {
         Library {
-            include_paths: Vec::new(),
             link_paths: Vec::new(),
+            dll_paths: Vec::new(),
+            include_paths: Vec::new(),
             cargo_metadata: Vec::new(),
             is_static: is_static,
             found_dlls: Vec::new(),
