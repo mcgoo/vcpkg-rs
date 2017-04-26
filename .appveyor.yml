@@ -10,7 +10,9 @@ platform:
 environment:
   matrix:
     - TOOLCHAIN_VERSION: 14.0
-      RUST: stable
+      RUST: 1.10.0
+    # - TOOLCHAIN_VERSION: 14.0
+    #   RUST: nightly
 
 # install:
 #   - set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
