@@ -63,8 +63,8 @@ cargo --version
 
 set RUST_BACKTRACE=1
 
-cargo build -vv %CARGO_MODE%
-if %ERRORLEVEL% NEQ 0 exit 1
+REM cargo build -vv %CARGO_MODE%
+REM if %ERRORLEVEL% NEQ 0 exit 1
 
-cargo test -vv %CARGO_MODE%
-if %ERRORLEVEL% NEQ 0 exit 1
+REM cargo test -vv %CARGO_MODE%
+REM if %ERRORLEVEL% NEQ 0 exit 1
