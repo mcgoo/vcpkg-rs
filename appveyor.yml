@@ -1,0 +1,12 @@
+install:
+  - set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
+  - git clone https://github.com/Microsoft/vcpkg
+  - cd vcpkg
+  - powershell -exec bypass scripts\bootstrap.ps1
+  - vcpkg install zlib
+  - vcpkg integrate install
+  - cd ..
+
+build_script:
+  - cargo build --all
+  - cargo test --all
