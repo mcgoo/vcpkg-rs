@@ -12,8 +12,6 @@ environment:
     - TOOLCHAIN_VERSION: 14.0
       RUST: stable
 
-build_script: .appveyor/appveyor.bat
-
 # install:
 #   - set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
 #   - git clone https://github.com/Microsoft/vcpkg packages
