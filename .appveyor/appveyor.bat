@@ -35,10 +35,10 @@ cd %ORIGINAL_PATH%
 git clone https://github.com/Microsoft/vcpkg packages
 cd packages
 powershell -exec bypass scripts\bootstrap.ps1
-vcpkg install zlib
+vcpkg install zlib:x64-windows 
 vcpkg integrate install
 
-cd %ORIGINAL_PATH%
+cd ..
 
 set RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%TARGET_ARCH%-pc-windows-msvc.msi
 echo Downloading %RUST_URL%...
@@ -63,8 +63,8 @@ cargo --version
 
 set RUST_BACKTRACE=1
 
-REM cargo build -vv %CARGO_MODE%
-REM if %ERRORLEVEL% NEQ 0 exit 1
+cargo build --all
 
-REM cargo test -vv %CARGO_MODE%
-REM if %ERRORLEVEL% NEQ 0 exit 1
+cargo test --all
+
+cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe zlib

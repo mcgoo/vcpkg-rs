@@ -25,5 +25,3 @@ environment:
 
 build_script:
   - .appveyor/appveyor.bat
-  - cargo build --all
-  - cargo test --all
