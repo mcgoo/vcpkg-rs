@@ -1,2 +1,5 @@
 [workspace]
 members = [ "vcpkg", "vcpkg_cli" ]
+
+#[replace]
+#"vcpkg:0.1.3" = { path = "vcpkg" }

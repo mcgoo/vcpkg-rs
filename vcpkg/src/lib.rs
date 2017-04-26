@@ -71,7 +71,12 @@ pub struct Library {
 
     /// libraries found are static
     pub is_static: bool,
+
+    // DLLs found
     pub found_dlls: Vec<PathBuf>,
+
+    // static libs or import libs found
+    pub found_libs: Vec<PathBuf>,
 }
 
 enum MSVCTarget {
@@ -349,6 +354,7 @@ impl Config {
             if !lib_location.exists() {
                 return Err(Error::LibNotFound(lib_location.display().to_string()));
             }
+            lib.found_libs.push(lib_location);
 
             // verify that the DLL exists
             if !static_lib {
@@ -405,6 +411,7 @@ impl Library {
             cargo_metadata: Vec::new(),
             is_static: is_static,
             found_dlls: Vec::new(),
+            found_libs: Vec::new(),
         }
     }
 }
@@ -420,7 +427,7 @@ fn infer_static(name: &str) -> bool {
     } else if env::var_os("VCPKG_ALL_DYNAMIC").is_some() {
         false
     } else {
-        true
+        false
     }
 }
 

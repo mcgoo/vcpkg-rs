@@ -76,6 +76,18 @@ fn main() {
                         println!("\t{}", line);
                     }
                 }
+                if !lib.cargo_metadata.is_empty() {
+                    println!("Found DLLs:");
+                    for line in &lib.found_dlls {
+                        println!("\t{}", line.display());
+                    }
+                }
+                if !lib.cargo_metadata.is_empty() {
+                    println!("Found libs:");
+                    for line in &lib.found_libs {
+                        println!("\t{}", line.display());
+                    }
+                }
             }
             Err(err) => {
                 println!("Failed:  {}", err);
