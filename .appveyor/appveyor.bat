@@ -35,7 +35,7 @@ cd %ORIGINAL_PATH%
 git clone https://github.com/Microsoft/vcpkg packages
 cd packages
 powershell -exec bypass scripts\bootstrap.ps1
-vcpkg install zlib:x64-windows 
+vcpkg install sqlite3:x64-windows 
 vcpkg integrate install
 
 cd ..
@@ -74,4 +74,6 @@ REM cargo build --manifest-path vcpkg_cli\Cargo.toml
 REM cargo test --manifest-path vcpkg\Cargo.toml
 REM cargo test --manifest-path vcpkg\Cargo.toml
 
-cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe zlib
+
+
+cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
