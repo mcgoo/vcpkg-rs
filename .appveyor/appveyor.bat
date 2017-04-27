@@ -39,6 +39,7 @@ vcpkg install zlib:x64-windows
 vcpkg integrate install
 
 cd ..
+echo on
 
 set RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%TARGET_ARCH%-pc-windows-msvc.msi
 echo Downloading %RUST_URL%...
@@ -66,5 +67,11 @@ set RUST_BACKTRACE=1
 cargo build --all
 
 cargo test --all
+
+REM cargo build --manifest-path vcpkg\Cargo.toml
+REM cargo build --manifest-path vcpkg_cli\Cargo.toml
+
+REM cargo test --manifest-path vcpkg\Cargo.toml
+REM cargo test --manifest-path vcpkg\Cargo.toml
 
 cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe zlib

@@ -10,7 +10,7 @@ platform:
 environment:
   matrix:
     - TOOLCHAIN_VERSION: 14.0
-      RUST: 1.10.0
+      RUST: 1.16.0
     # - TOOLCHAIN_VERSION: 14.0
     #   RUST: nightly
 
