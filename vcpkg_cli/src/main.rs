@@ -39,7 +39,7 @@ fn main() {
 
         let mut cfg = vcpkg::Config::new();
         cfg.cargo_metadata(false);
-
+        cfg.copy_dlls(false);
         if let Some(linkage) = matches.value_of("linkage") {
             match &linkage {
                 &"dll" => {
