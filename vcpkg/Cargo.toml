@@ -11,4 +11,8 @@ time in order to be used in Cargo build scripts.
 """
 keywords = ["build-dependencies"]
 
+[badges]
+travis-ci = { repository = "mcgoo/vcpkg-rs" }
+appveyor = { repository = "mcgoo/vcpkg-rs" }
+
 [dependencies]
