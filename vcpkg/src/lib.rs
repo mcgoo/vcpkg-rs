@@ -407,13 +407,11 @@ impl Config {
                 for file in &lib.found_dlls {
                     let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
                     dest_path.push(Path::new(file.file_name().unwrap()));
-                    fs::copy(file, &dest_path)
-                        .map_err(|_| {
-                            Error::LibNotFound(format!("Can't copy file {} to {}",
-                                                       file.to_string_lossy(),
-                                                       dest_path.to_string_lossy()))
-                        })?;
-                    //
+                    try!(fs::copy(file, &dest_path).map_err(|_| {
+                        Error::LibNotFound(format!("Can't copy file {} to {}",
+                                                   file.to_string_lossy(),
+                                                   dest_path.to_string_lossy()))
+                    }));
                     println!("warning: copied {} to {}",
                              file.to_string_lossy(),
                              dest_path.to_string_lossy());
