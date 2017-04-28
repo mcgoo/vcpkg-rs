@@ -4,7 +4,7 @@
 //! The simplest possible usage for a library whose vcpkg port name matches the
 //! name of the lib and DLL that are being looked for looks like this :-
 //! ```rust
-//! vcpkg::probe_library("libgit2").unwrap();
+//! vcpkg::probe_library("libssh2").unwrap();
 //! ```
 //!
 //! In practice the .lib and .dll often differ in name from the package itself,
@@ -65,7 +65,7 @@
 use std::ascii::AsciiExt;
 use std::env;
 use std::error;
-use std::fs::File;
+use std::fs::{self, File};
 use std::fmt;
 use std::io::{BufRead, BufReader};
 use std::path::{PathBuf, Path};
@@ -83,6 +83,9 @@ pub struct Config {
 
     /// libs that must be be found for probing to be considered successful
     required_libs: Vec<LibNames>,
+
+    /// should DLLs be copies to OUT_DIR?
+    copy_dlls: bool,
 }
 
 #[derive(Debug)]
@@ -255,6 +258,7 @@ impl Config {
             statik: None,
             cargo_metadata: true,
             required_libs: Vec::new(),
+            copy_dlls: true,
         }
     }
 
@@ -301,6 +305,13 @@ impl Config {
     /// automatically link the binary. Defaults to `true`.
     pub fn cargo_metadata(&mut self, cargo_metadata: bool) -> &mut Config {
         self.cargo_metadata = cargo_metadata;
+        self
+    }
+
+    /// Should DLLs be copied to OUT_DIR?
+    /// Defaults to `true`.
+    pub fn copy_dlls(&mut self, copy_dlls: bool) -> &mut Config {
+        self.copy_dlls = copy_dlls;
         self
     }
 
@@ -388,6 +399,27 @@ impl Config {
                     return Err(Error::LibNotFound(lib_location.display().to_string()));
                 }
                 lib.found_dlls.push(lib_location);
+            }
+        }
+
+        if self.copy_dlls {
+            if let Some(target_dir) = env::var_os("OUT_DIR") {
+                for file in &lib.found_dlls {
+                    let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
+                    dest_path.push(Path::new(file.file_name().unwrap()));
+                    fs::copy(file, &dest_path)
+                        .map_err(|_| {
+                            Error::LibNotFound(format!("Can't copy file {} to {}",
+                                                       file.to_string_lossy(),
+                                                       dest_path.to_string_lossy()))
+                        })?;
+                    //
+                    println!("warning: copied {} to {}",
+                             file.to_string_lossy(),
+                             dest_path.to_string_lossy());
+                }
+            } else {
+                return Err(Error::LibNotFound("Can't copy file".to_owned())); // TODO:
             }
         }
 
