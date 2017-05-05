@@ -199,8 +199,9 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
     let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| {
         Error::VcpkgNotFound("Failed to read LOCALAPPDATA environment variable".to_string())
     })); // not present or can't utf8
-    let vcpkg_user_targets_path =
-        Path::new(local_app_data.as_str()).join("vcpkg").join("vcpkg.user.targets");
+    let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
+        .join("vcpkg")
+        .join("vcpkg.user.targets");
 
     let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
         Error::VcpkgNotFound("No vcpkg.user.targets found. run 'vcpkg integrate install' or set \
@@ -211,9 +212,11 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
 
     for line in file.lines() {
         let line = try!(line.map_err(|_| {
-            Error::VcpkgNotFound(format!("Parsing of {} failed.",
-                                         vcpkg_user_targets_path.to_string_lossy().to_owned()))
-        }));
+                                         Error::VcpkgNotFound(format!("Parsing of {} failed.",
+                                                                      vcpkg_user_targets_path
+                                                                          .to_string_lossy()
+                                                                          .to_owned()))
+                                     }));
         let mut split = line.split("Project=\"");
         split.next(); // eat anything before Project="
         if let Some(found) = split.next() {
@@ -279,10 +282,11 @@ impl Config {
     /// `.libname("ssleay32")` will look for ssleay32.lib and also ssleay32.dll if
     /// dynamic linking is selected.
     pub fn lib_name(&mut self, lib_stem: &str) -> &mut Config {
-        self.required_libs.push(LibNames {
-            lib_stem: lib_stem.to_owned(),
-            dll_stem: lib_stem.to_owned(),
-        });
+        self.required_libs
+            .push(LibNames {
+                      lib_stem: lib_stem.to_owned(),
+                      dll_stem: lib_stem.to_owned(),
+                  });
         self
     }
 
@@ -294,10 +298,11 @@ impl Config {
     /// `.lib_names("libcurl_imp","curl")` will look for libcurl_imp.lib and also curl.dll if
     /// dynamic linking is selected.
     pub fn lib_names(&mut self, lib_stem: &str, dll_stem: &str) -> &mut Config {
-        self.required_libs.push(LibNames {
-            lib_stem: lib_stem.to_owned(),
-            dll_stem: dll_stem.to_owned(),
-        });
+        self.required_libs
+            .push(LibNames {
+                      lib_stem: lib_stem.to_owned(),
+                      dll_stem: dll_stem.to_owned(),
+                  });
         self
     }
 
@@ -324,10 +329,11 @@ impl Config {
         // if no overrides have been selected, then the vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
-            self.required_libs.push(LibNames {
-                lib_stem: port_name.to_owned(),
-                dll_stem: port_name.to_owned(),
-            });
+            self.required_libs
+                .push(LibNames {
+                          lib_stem: port_name.to_owned(),
+                          dll_stem: port_name.to_owned(),
+                      });
         }
 
         let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
@@ -346,11 +352,7 @@ impl Config {
 
         let mut base = vcpkg_root;
         base.push("installed");
-        let static_appendage = if static_lib {
-            "-static"
-        } else {
-            ""
-        };
+        let static_appendage = if static_lib { "-static" } else { "" };
 
         let vcpkg_triple = format!("{}{}", msvc_arch.to_string(), static_appendage);
         base.push(vcpkg_triple);
@@ -376,7 +378,8 @@ impl Config {
                 lib.cargo_metadata
                     .push(format!("cargo:rustc-link-lib=static={}", required_lib.lib_stem));
             } else {
-                lib.cargo_metadata.push(format!("cargo:rustc-link-lib={}", required_lib.lib_stem));
+                lib.cargo_metadata
+                    .push(format!("cargo:rustc-link-lib={}", required_lib.lib_stem));
             }
 
             // verify that the library exists
@@ -404,20 +407,28 @@ impl Config {
 
         if self.copy_dlls {
             if let Some(target_dir) = env::var_os("OUT_DIR") {
-                for file in &lib.found_dlls {
-                    let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
-                    dest_path.push(Path::new(file.file_name().unwrap()));
-                    try!(fs::copy(file, &dest_path).map_err(|_| {
-                        Error::LibNotFound(format!("Can't copy file {} to {}",
-                                                   file.to_string_lossy(),
-                                                   dest_path.to_string_lossy()))
-                    }));
-                    println!("warning: copied {} to {}",
-                             file.to_string_lossy(),
-                             dest_path.to_string_lossy());
+                if !lib.found_dlls.is_empty() {
+                    for file in &lib.found_dlls {
+                        let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
+                        dest_path.push(Path::new(file.file_name().unwrap()));
+                        try!(fs::copy(file, &dest_path).map_err(|_| {
+                            Error::LibNotFound(format!("Can't copy file {} to {}",
+                                                    file.to_string_lossy(),
+                                                    dest_path.to_string_lossy()))
+                        }));
+                        println!("vcpkg build helper copied {} to {}",
+                                 file.to_string_lossy(),
+                                 dest_path.to_string_lossy());
+                    }
+                    lib.cargo_metadata
+                        .push(format!("cargo:rustc-link-search=native={}",
+                                      env::var("OUT_DIR").unwrap()));
+                    // work around https://github.com/rust-lang/cargo/issues/3957
+                    lib.cargo_metadata
+                        .push(format!("cargo:rustc-link-search={}", env::var("OUT_DIR").unwrap()));
                 }
             } else {
-                return Err(Error::LibNotFound("Can't copy file".to_owned())); // TODO:
+                return Err(Error::LibNotFound("Unable to get OUT_DIR".to_owned()));
             }
         }
 
@@ -459,20 +470,14 @@ fn infer_static(name: &str) -> bool {
     } else if env::var_os("VCPKG_ALL_DYNAMIC").is_some() {
         false
     } else {
-        false
+        true
     }
 }
 
 fn envify(name: &str) -> String {
     name.chars()
         .map(|c| c.to_ascii_uppercase())
-        .map(|c| {
-            if c == '-' {
-                '_'
-            } else {
-                c
-            }
-        })
+        .map(|c| if c == '-' { '_' } else { c })
         .collect()
 }
 
