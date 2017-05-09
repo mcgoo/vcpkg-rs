@@ -26,8 +26,7 @@
 //! library named `foo`.
 //!
 //! There are also a number of environment variables which can configure how a
-//! library is linked to (dynamically vs statically). These variables control
-//! whether the `--static` flag is passed. Note that this behavior can be
+//! library is linked to (dynamically vs statically). Note that this behavior can be
 //! overridden by configuring explicitly on `Config`. The variables are checked
 //! in the following order:
 //!
@@ -80,6 +79,9 @@ pub struct Config {
 
     /// should the cargo metadata actually be emitted
     cargo_metadata: bool,
+
+    /// should cargo:include= metadata be emitted (defaults to false)
+    emit_includes: bool,
 
     /// libs that must be be found for probing to be considered successful
     required_libs: Vec<LibNames>,
@@ -260,6 +262,7 @@ impl Config {
         Config {
             statik: None,
             cargo_metadata: true,
+            emit_includes: false,
             required_libs: Vec::new(),
             copy_dlls: true,
         }
@@ -313,6 +316,12 @@ impl Config {
         self
     }
 
+    /// Define cargo:include= metadata should be emitted. Defaults to `false`.
+    pub fn emit_includes(&mut self, emit_includes: bool) -> &mut Config {
+        self.emit_includes = emit_includes;
+        self
+    }
+
     /// Should DLLs be copied to OUT_DIR?
     /// Defaults to `true`.
     pub fn copy_dlls(&mut self, copy_dlls: bool) -> &mut Config {
@@ -360,6 +369,10 @@ impl Config {
         let lib_path = base.join("lib");
         let bin_path = base.join("bin");
         let include_path = base.join("include");
+        if self.emit_includes {
+            lib.cargo_metadata
+                .push(format!("cargo:include={}", include_path.display()));
+        }
         lib.include_paths.push(include_path);
 
         lib.cargo_metadata
