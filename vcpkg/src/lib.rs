@@ -1,7 +1,7 @@
 //! A build dependency for Cargo libraries to find libraries in a
-//! [vcpkg](https://github.com/Microsoft/vcpkg) tree.
+//! [Vcpkg](https://github.com/Microsoft/vcpkg) tree.
 //!
-//! The simplest possible usage for a library whose vcpkg port name matches the
+//! The simplest possible usage for a library whose Vcpkg port name matches the
 //! name of the lib and DLL that are being looked for looks like this :-
 //! ```rust
 //! vcpkg::probe_library("libssh2").unwrap();
@@ -15,6 +15,13 @@
 //!     .probe("zlib").unwrap();
 //! ```
 //!
+//! If the search was successful all appropriate Cargo metadata will be printed
+//! on stdout.
+//!
+//! The decision to choose static variants of libraries is driven by the rustc
+//! flag `-C target-feature=crt-static`. This requires a nightly compiler but is
+//! scheduled to be stable in rustc 1.19.
+//!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
@@ -25,26 +32,7 @@
 //! * `FOO_NO_VCPKG` - if set, vcpkg will not attempt to find the
 //! library named `foo`.
 //!
-//! There are also a number of environment variables which can configure how a
-//! library is linked to (dynamically vs statically). Note that this behavior can be
-//! overridden by configuring explicitly on `Config`. The variables are checked
-//! in the following order:
-//!
-//! * `FOO_STATIC` - find the static version of `foo`
-//! * `FOO_DYNAMIC` - find the dll version of  `foo`
-//! * `VCPKG_ALL_STATIC` - find the static version of all libraries
-//! * `VCPKG_ALL_DYNAMIC` - find the dll version of all libraries
-//!
-//! If the search was successful all appropriate Cargo metadata will be printed
-//! on stdout.
-//!
-//! This cargo build helper is derived from and intended to work like the
-//! `pkg-config` build helper to the extent that is possible, but `pkg-config`
-//! the tool has functionality that `vcpkg` does not. In particular, vcpkg
-//! does not allow mapping from a package name to the libs that it provides,
-//! so this build helper must be called once for each library that is required
-//! rather than once for the overall package. A better interface is no doubt
-//! possible.
+//! * `NO_VCPKG` - if set, vcpkg will not attempt to find any libraries.
 //!
 //! There is a companion crate `vcpkg_cli` that allows testing of environment
 //! and flag combinations.
@@ -71,12 +59,6 @@ use std::path::{PathBuf, Path};
 
 // #[derive(Clone)]
 pub struct Config {
-    /// The type of linkage library to look for. The default of `None`
-    /// will result in the linkage being determined from the process
-    /// environment, defaulting to dynamic if no environment
-    /// variables are set.
-    statik: Option<bool>,
-
     /// should the cargo metadata actually be emitted
     cargo_metadata: bool,
 
@@ -260,21 +242,11 @@ struct LibNames {
 impl Config {
     pub fn new() -> Config {
         Config {
-            statik: None,
             cargo_metadata: true,
             emit_includes: false,
             required_libs: Vec::new(),
             copy_dlls: true,
         }
-    }
-
-    /// Indicate whether to look for a static lib.
-    ///
-    /// This will override the inference from environment variables described in
-    /// the crate documentation.
-    pub fn statik(&mut self, statik: bool) -> &mut Config {
-        self.statik = Some(statik);
-        self
     }
 
     /// Override the name of the library to look for if it differs from the package name.
@@ -329,13 +301,13 @@ impl Config {
         self
     }
 
-    /// Find the library `port_name` in a vcpkg tree.
+    /// Find the library `port_name` in a Vcpkg tree.
     ///
     /// This will use all configuration previously set to select the
     /// architecture and linkage.
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
 
-        // if no overrides have been selected, then the vcpkg port name
+        // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
             self.required_libs
@@ -345,6 +317,12 @@ impl Config {
                       });
         }
 
+        // bail out if requested to not try at all
+        if env::var_os("NO_VCPKG").is_some() {
+            return Err(Error::EnvNoPkgConfig("NO_VCPKG".to_owned()));
+        }
+
+        // bail out if requested to skip this package
         let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
         if env::var_os(&abort_var_name).is_some() {
             return Err(Error::EnvNoPkgConfig(abort_var_name));
@@ -355,7 +333,9 @@ impl Config {
         let vcpkg_root = try!(find_vcpkg_root());
         try!(validate_vcpkg_root(&vcpkg_root));
 
-        let static_lib = self.is_static(port_name);
+        let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
+            .unwrap_or(String::new())
+            .contains("crt-static");
 
         let mut lib = Library::new(static_lib);
 
@@ -452,10 +432,6 @@ impl Config {
         }
         Ok(lib)
     }
-
-    fn is_static(&self, name: &str) -> bool {
-        self.statik.unwrap_or_else(|| infer_static(name))
-    }
 }
 
 impl Library {
@@ -469,21 +445,6 @@ impl Library {
             found_dlls: Vec::new(),
             found_libs: Vec::new(),
         }
-    }
-}
-
-fn infer_static(name: &str) -> bool {
-    let name = envify(name);
-    if env::var_os(&format!("{}_STATIC", name)).is_some() {
-        true
-    } else if env::var_os(&format!("{}_DYNAMIC", name)).is_some() {
-        false
-    } else if env::var_os("VCPKG_ALL_STATIC").is_some() {
-        true
-    } else if env::var_os("VCPKG_ALL_DYNAMIC").is_some() {
-        false
-    } else {
-        true
     }
 }
 

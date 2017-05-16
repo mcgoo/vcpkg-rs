@@ -43,10 +43,10 @@ fn main() {
         if let Some(linkage) = matches.value_of("linkage") {
             match &linkage {
                 &"dll" => {
-                    cfg.statik(false);
+                    // do nothing
                 }
                 &"static" => {
-                    cfg.statik(true);
+                    env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
                 }
                 _ => unreachable!(),
             }
