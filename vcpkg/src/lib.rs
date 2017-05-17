@@ -3,13 +3,15 @@
 //!
 //! The simplest possible usage for a library whose Vcpkg port name matches the
 //! name of the lib and DLL that are being looked for looks like this :-
-//! ```rust
-//! vcpkg::probe_library("libssh2").unwrap();
+//!
+//! ```rust,no_run
+//! vcpkg::probe_package("libssh2").unwrap();
 //! ```
 //!
 //! In practice the .lib and .dll often differ in name from the package itself,
 //! in which case the library names must be specified, like this :-
-//! ```rust
+//!
+//! ```rust,no_run
 //! vcpkg::Config::new()
 //!     .lib_names("zlib","zlib1")
 //!     .probe("zlib").unwrap();
@@ -20,7 +22,9 @@
 //!
 //! The decision to choose static variants of libraries is driven by the rustc
 //! flag `-C target-feature=crt-static`. This requires a nightly compiler but is
-//! scheduled to be stable in rustc 1.19.
+//! scheduled to be stable in rustc 1.19. Until then, users of stable rustc will
+//! need to set their `RUSTFLAGS` environment variable to `-C target-feature=crt-static
+//! -Z unstable-options`
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
