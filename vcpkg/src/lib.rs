@@ -335,7 +335,7 @@ impl Config {
 
         let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
             .unwrap_or(String::new())
-            .contains("crt-static");
+            .contains("+crt-static");
 
         let mut lib = Library::new(static_lib);
 
