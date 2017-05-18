@@ -35,7 +35,7 @@ cd %ORIGINAL_PATH%
 git clone https://github.com/Microsoft/vcpkg packages
 cd packages
 powershell -exec bypass scripts\bootstrap.ps1
-vcpkg --triplet=x64-windows install sqlite3 libpq libmysql curl zeromq 
+vcpkg --triplet x64-windows install sqlite3 libpq libmysql curl zeromq 
 vcpkg integrate install
 
 cd ..
