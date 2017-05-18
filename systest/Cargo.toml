@@ -1,0 +1,18 @@
+[package]
+name = "curl_vcpkg_test"
+version = "0.1.0"
+authors = ["Jim McGrath <jimmc2@gmail.com>"]
+
+[dependencies]
+#curl-sys = {version = "0.3.10", path = "../curl-rust/curl-sys" }
+curl = "*"
+libz-sys="*"
+openssl-sys="*"
+zmq-sys = "*"
+
+[replace]
+"curl-sys:0.3.10" = { path = "../curl-rust/curl-sys" }
+"libz-sys:1.0.13" = { path = "../libz-sys" }
+"vcpkg:0.1.4" = { path = "../vcpkg-rs/vcpkg" }
+"openssl-sys:0.9.11" = { path = "../rust-openssl/openssl-sys" }
+"zmq-sys:0.8.1" = { path = "../rust-zmq/zmq-sys" }

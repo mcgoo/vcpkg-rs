@@ -22,9 +22,7 @@
 //!
 //! The decision to choose static variants of libraries is driven by the rustc
 //! flag `-C target-feature=crt-static`. This requires a nightly compiler but is
-//! scheduled to be stable in rustc 1.19. Until then, users of stable rustc will
-//! need to set their `RUSTFLAGS` environment variable to `-C target-feature=crt-static
-//! -Z unstable-options`
+//! scheduled to be stable in rustc 1.19.
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
