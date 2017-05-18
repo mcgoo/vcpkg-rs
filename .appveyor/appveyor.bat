@@ -31,31 +31,8 @@ echo on
 
 cd %ORIGINAL_PATH%
 
-
-git clone https://github.com/Microsoft/vcpkg packages
-cd packages
-powershell -exec bypass scripts\bootstrap.ps1
-vcpkg --triplet x64-windows install sqlite3 libpq libmysql curl zeromq 
-vcpkg integrate install
-
 cd ..
 echo on
-
-set RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%TARGET_ARCH%-pc-windows-msvc.msi
-echo Downloading %RUST_URL%...
-mkdir build
-powershell -Command "(New-Object Net.WebClient).DownloadFile('%RUST_URL%', 'build\rust-%RUST%-%TARGET_ARCH%-pc-windows-msvc.msi')"
-if %ERRORLEVEL% NEQ 0 (
-  echo ...downloading Rust failed.
-  exit 1
-)
-
-start /wait msiexec /i build\rust-%RUST%-%TARGET_ARCH%-pc-windows-msvc.msi INSTALLDIR="%TARGET_PROGRAM_FILES%\Rust %RUST%" /quiet /qn /norestart
-if %ERRORLEVEL% NEQ 0 exit 1
-
-set PATH="%TARGET_PROGRAM_FILES%\Rust %RUST%\bin";%PATH%
-
-if [%Configuration%] == [Release] set CARGO_MODE=--release
 
 link /?
 cl /?
@@ -65,17 +42,6 @@ cargo --version
 set RUST_BACKTRACE=1
 
 cargo build --all
-
 cargo test --all
-
-REM cargo build --manifest-path vcpkg\Cargo.toml
-REM cargo build --manifest-path vcpkg_cli\Cargo.toml
-
-REM cargo test --manifest-path vcpkg\Cargo.toml
-REM cargo test --manifest-path vcpkg\Cargo.toml
-
-
-
 cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
-
 cargo run --manifest-path systest\Cargo.toml 
