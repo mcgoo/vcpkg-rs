@@ -36,6 +36,7 @@ install:
 build: false
 
 test_script:
+  - if defined VCPKG_DEFAULT_TRIPLET set VCPKG_ROOT=c:\projects\vcpkg
   - rustc --version
   - cargo --version
   - set RUST_BACKTRACE=1
