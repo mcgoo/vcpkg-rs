@@ -46,7 +46,7 @@ fn main() {
                     // do nothing
                 }
                 &"static" => {
-                    env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
+                    env::set_var("CARGO_CFG_TARGET_FEATURE", "+crt-static");
                 }
                 _ => unreachable!(),
             }
