@@ -33,7 +33,9 @@ install:
   - if defined VCPKG_DEFAULT_TRIPLET set VCPKG_ROOT=c:\projects\vcpkg
   - if defined VCPKG_DEFAULT_TRIPLET %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
 
-build:
+build: false
+
+test_script:
   - rustc --version
   - cargo --version
   - set RUST_BACKTRACE=1
