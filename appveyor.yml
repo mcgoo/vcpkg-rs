@@ -33,5 +33,11 @@ install:
   - if defined VCPKG_DEFAULT_TRIPLET set VCPKG_ROOT=c:\projects\vcpkg
   - if defined VCPKG_DEFAULT_TRIPLET %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
 
-build_script:
-  - .appveyor/appveyor.bat
+build:
+  - rustc --version
+  - cargo --version
+  - set RUST_BACKTRACE=1
+  - cargo build --all
+  - cargo test --all
+  - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
+  - cargo run --manifest-path systest\Cargo.toml 
