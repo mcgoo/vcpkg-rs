@@ -2,7 +2,6 @@
 #  - Visual Studio 2015
 environment:
   RUST: stable
-  APPVEYOR_SAVE_CACHE_ON_ERROR: true
   matrix:
     - TARGET: x86_64-pc-windows-msvc
       VCPKG_PANIC: 1
@@ -45,7 +44,3 @@ test_script:
   - cargo test --all
   - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
   - cargo run --manifest-path systest\Cargo.toml 
-
-cache:
-  - C:\Users\appveyor\.cargo -> appveyor.yml
-  - C:\Projects\vcpkg -> appveyor.yml
