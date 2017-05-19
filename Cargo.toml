@@ -1,8 +1,5 @@
 [workspace]
-members = [ "vcpkg", "vcpkg_cli" ]
-
-# exclude systest from the workspace so it has it's own [replace]
-exclude = ["systest"]
+members = [ "vcpkg", "vcpkg_cli", "systest" ]
 
 #[replace]
 #"vcpkg:0.1.3" = { path = "vcpkg" }
