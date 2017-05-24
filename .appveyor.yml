@@ -53,4 +53,4 @@ test_script:
   - cargo run --manifest-path systest\Cargo.toml 
   
 cache:
-  - C:\projects\downloads\openssl* # -> .appveyor.yml
+  - C:\projects\downloads\openssl* -> .appveyor.yml
