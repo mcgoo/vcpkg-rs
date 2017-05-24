@@ -32,6 +32,7 @@ install:
   - c:\projects\vcpkg\bootstrap-vcpkg.bat
   - set VCPKG_ROOT=c:\projects\vcpkg
   - if not exist "c:\projects\downloads\" mkdir c:\projects\downloads
+  - dir c:\projects\downloads
   - xcopy c:\projects\downloads\*.* c:\projects\vcpkg\downloads
   - if defined VCPKG_ROOT %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
   - xcopy c:\projects\vcpkg\downloads\*.* c:\projects\downloads
