@@ -2,6 +2,7 @@
 #  - Visual Studio 2015
 environment:
   RUST: stable
+  APPVEYOR_SAVE_CACHE_ON_ERROR: true
   matrix:
     - TARGET: x86_64-pc-windows-msvc
       VCPKG_PANIC: 1
@@ -28,14 +29,19 @@ install:
   - rustc -V
   - cargo -V
 
-  - if defined VCPKG_DEFAULT_TRIPLET git clone https://github.com/Microsoft/vcpkg c:\projects\vcpkg
-  - if defined VCPKG_DEFAULT_TRIPLET c:\projects\vcpkg\bootstrap-vcpkg.bat
-  - if defined VCPKG_DEFAULT_TRIPLET set VCPKG_ROOT=c:\projects\vcpkg
-  - if defined VCPKG_DEFAULT_TRIPLET %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
+  # install vcpkg
+  - git clone https://github.com/Microsoft/vcpkg c:\projects\vcpkg
+  - c:\projects\vcpkg\bootstrap-vcpkg.bat
+  - set VCPKG_ROOT=c:\projects\vcpkg
+  - mkdir c:\projects\downloads
+  - copy c:\projects\downloads\*.* c:\projects\vcpkg\downloads
+  - %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
+  - copy c:\projects\vcpkg\downloads\*.* c:\projects\downloads
 
 build: false
 
 test_script:
+  # why?
   - if defined VCPKG_DEFAULT_TRIPLET set VCPKG_ROOT=c:\projects\vcpkg
   - rustc --version
   - cargo --version
@@ -44,3 +50,6 @@ test_script:
   - cargo test --all
   - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
   - cargo run --manifest-path systest\Cargo.toml 
+  
+cache:
+  - C:\Projects\downloads -> appveyor.yml
