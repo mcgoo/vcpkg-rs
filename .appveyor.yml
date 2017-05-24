@@ -37,6 +37,7 @@ install:
   - set VCPKG_ROOT=c:\projects\vcpkg
   - if defined VCPKG_ROOT %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
   - xcopy c:\projects\vcpkg\downloads\* c:\projects\downloads\
+  - dir c:\projects\downloads
 
 build: false
 
@@ -52,4 +53,4 @@ test_script:
   - cargo run --manifest-path systest\Cargo.toml 
   
 cache:
-  - C:\Projects\downloads -> appveyor.yml
+  - C:\projects\downloads # -> .appveyor.yml
