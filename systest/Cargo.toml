@@ -5,7 +5,7 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
 [dependencies]
 curl = { git = "https://github.com/mcgoo/curl-rust", branch = "vcpkg-next" }
-libz-sys = { git = "https://github.com/alexcrichton/libz-sys" }
+libz-sys = "*"
 openssl-sys = { git = "https://github.com/mcgoo/rust-openssl", branch = "vcpkg-next" }
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg-next" }
 
