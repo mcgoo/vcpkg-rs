@@ -241,6 +241,45 @@ struct LibNames {
     dll_stem: String,
 }
 
+fn find_vcpkg_target() -> Result<VcpkgTarget, Error> {
+    let msvc_target = try!(msvc_target());
+
+    let vcpkg_root = try!(find_vcpkg_root());
+    try!(validate_vcpkg_root(&vcpkg_root));
+
+    let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
+        .unwrap_or(String::new())
+        .contains("crt-static");
+
+    let mut base = vcpkg_root;
+    base.push("installed");
+    let static_appendage = if static_lib { "-static" } else { "" };
+
+    let vcpkg_triple = format!("{}{}", msvc_target.to_string(), static_appendage);
+    base.push(vcpkg_triple);
+
+    let lib_path = base.join("lib");
+    let bin_path = base.join("bin");
+    let include_path = base.join("include");
+
+    Ok(VcpkgTarget {
+           //           vcpkg_triple: vcpkg_triple,
+           lib_path: lib_path,
+           bin_path: bin_path,
+           include_path: include_path,
+           is_static: static_lib,
+       })
+}
+
+/// paths and triple for the chosen target
+struct VcpkgTarget {
+    //    vcpkg_triple: String,
+    lib_path: PathBuf,
+    bin_path: PathBuf,
+    include_path: PathBuf,
+    is_static: bool,
+}
+
 impl Config {
     pub fn new() -> Config {
         Config {
@@ -330,46 +369,36 @@ impl Config {
             return Err(Error::EnvNoPkgConfig(abort_var_name));
         }
 
-        let msvc_arch = try!(msvc_target());
+        let vcpkg_target = try!(find_vcpkg_target());
 
-        let vcpkg_root = try!(find_vcpkg_root());
-        try!(validate_vcpkg_root(&vcpkg_root));
+        let mut lib = Library::new(vcpkg_target.is_static);
 
-        let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
-            .unwrap_or(String::new())
-            .contains("crt-static");
-
-        let mut lib = Library::new(static_lib);
-
-        let mut base = vcpkg_root;
-        base.push("installed");
-        let static_appendage = if static_lib { "-static" } else { "" };
-
-        let vcpkg_triple = format!("{}{}", msvc_arch.to_string(), static_appendage);
-        base.push(vcpkg_triple);
-
-        let lib_path = base.join("lib");
-        let bin_path = base.join("bin");
-        let include_path = base.join("include");
         if self.emit_includes {
             lib.cargo_metadata
-                .push(format!("cargo:include={}", include_path.display()));
+                .push(format!("cargo:include={}", vcpkg_target.include_path.display()));
         }
-        lib.include_paths.push(include_path);
+        lib.include_paths.push(vcpkg_target.include_path);
 
         lib.cargo_metadata
             .push(format!("cargo:rustc-link-search=native={}",
-                          lib_path.to_str().expect("failed to convert string type")));
-        lib.link_paths.push(lib_path.clone());
-        if !static_lib {
+                          vcpkg_target
+                              .lib_path
+                              .to_str()
+                              .expect("failed to convert string type")));
+        lib.link_paths.push(vcpkg_target.lib_path.clone());
+        if !vcpkg_target.is_static {
             lib.cargo_metadata
                 .push(format!("cargo:rustc-link-search=native={}",
-                              bin_path.to_str().expect("failed to convert string type")));
-            lib.dll_paths.push(bin_path.clone());
+                              vcpkg_target
+                                  .bin_path
+                                  .to_str()
+                                  .expect("failed to convert string type")));
+            // this path is dropped by recent version of cargo hence the copies to OUT_DIR below
+            lib.dll_paths.push(vcpkg_target.bin_path.clone());
         }
         drop(port_name);
         for required_lib in &self.required_libs {
-            if static_lib {
+            if vcpkg_target.is_static {
                 lib.cargo_metadata
                     .push(format!("cargo:rustc-link-lib=static={}", required_lib.lib_stem));
             } else {
@@ -378,7 +407,7 @@ impl Config {
             }
 
             // verify that the library exists
-            let mut lib_location = PathBuf::from(lib_path.clone());
+            let mut lib_location = vcpkg_target.lib_path.clone();
             lib_location.push(required_lib.lib_stem.clone());
             lib_location.set_extension("lib");
 
@@ -388,8 +417,8 @@ impl Config {
             lib.found_libs.push(lib_location);
 
             // verify that the DLL exists
-            if !static_lib {
-                let mut lib_location = PathBuf::from(bin_path.clone());
+            if !vcpkg_target.is_static {
+                let mut lib_location = vcpkg_target.bin_path.clone();
                 lib_location.push(required_lib.dll_stem.clone());
                 lib_location.set_extension("dll");
 
