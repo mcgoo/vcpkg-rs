@@ -1,5 +1,5 @@
 [package]
-name = "curl_vcpkg_test"
+name = "systest"
 version = "0.1.0"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 

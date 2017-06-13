@@ -3,4 +3,3 @@ members = [ "vcpkg", "vcpkg_cli", "systest" ]
 
 [replace]
 "vcpkg:0.2.0" = { path = "vcpkg" }
-"libz-sys:1.0.13" = { git = "https://github.com/alexcrichton/libz-sys" }
