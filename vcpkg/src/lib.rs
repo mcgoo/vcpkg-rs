@@ -1,6 +1,12 @@
 //! A build dependency for Cargo libraries to find libraries in a
 //! [Vcpkg](https://github.com/Microsoft/vcpkg) tree.
 //!
+//! Note: You must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static` or
+//! `VCPKGRS_DYNAMIC=1` in your environment or the vcpkg-rs helper
+//! will not find any libraries. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
+//! generate dynamically linked binaries, in which case you will have to arrange for
+//! dlls from your Vcpkg installation to be available in your path.
+//!
 //! The simplest possible usage for a library whose Vcpkg port name matches the
 //! name of the lib and DLL that are being looked for looks like this :-
 //!
@@ -31,10 +37,12 @@
 //! it is not set, vcpkg will use the user-wide installation if one has been
 //! set up with `vcpkg integrate install`
 //!
-//! * `FOO_NO_VCPKG` - if set, vcpkg will not attempt to find the
+//! * `VCPKGRS_NO_FOO` - if set, vcpkg-rs will not attempt to find the
 //! library named `foo`.
 //!
-//! * `NO_VCPKG` - if set, vcpkg will not attempt to find any libraries.
+//! * `VCPKGRS_DISABLE` - if set, vcpkg-rs will not attempt to find any libraries.
+//!
+//! * `VCPKGRS_DYNAMIC` - if set, vcpkg-rs will link to DLL builds of ports.
 //!
 //! There is a companion crate `vcpkg_cli` that allows testing of environment
 //! and flag combinations.
@@ -114,10 +122,13 @@ impl fmt::Display for MSVCTarget {
 
 #[derive(Debug)] // need Display?
 pub enum Error {
-    /// Aborted because of `*_NO_VCPKG` environment variable.
+    /// Aborted because of a `VCPKGRS_NO_*` environment variable.
     ///
     /// Contains the name of the responsible environment variable.
-    EnvNoPkgConfig(String),
+    DisabledByEnv(String),
+
+    /// Aborted because a required environment variable was not set.
+    RequiredEnvMissing(String),
 
     /// Only MSVC ABI is supported
     NotMSVC,
@@ -135,10 +146,11 @@ pub enum Error {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::EnvNoPkgConfig(_) => "vcpkg requested to be aborted",
-            Error::NotMSVC => "vcpkg only can only find libraries for MSVC ABI 64 bit builds",
-            Error::VcpkgNotFound(_) => "could not find vcpkg tree",
-            Error::LibNotFound(_) => "could not find library in vcpkg tree",
+            Error::DisabledByEnv(_) => "vcpkg-rs requested to be aborted",
+            Error::RequiredEnvMissing(_) => "a required env setting is missing",
+            Error::NotMSVC => "vcpkg-rs only can only find libraries for MSVC ABI 64 bit builds",
+            Error::VcpkgNotFound(_) => "could not find Vcpkg tree",
+            Error::LibNotFound(_) => "could not find library in Vcpkg tree",
             // Error::LibNotFound(_) => "could not find library in vcpkg tree",
             Error::__Nonexhaustive => panic!(),
         }
@@ -155,14 +167,15 @@ impl error::Error for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Error::EnvNoPkgConfig(ref name) => write!(f, "Aborted because {} is set", name),
+            Error::DisabledByEnv(ref name) => write!(f, "Aborted because {} is set", name),
+            Error::RequiredEnvMissing(ref name) => write!(f, "Aborted because {} is not set", name),
             Error::NotMSVC => {
                 write!(f,
-                       "this vcpkg build helper can only find libraries built for the MSVC ABI.")
+                       "the vcpkg-rs Vcpkg build helper can only find libraries built for the MSVC ABI.")
             } 
-            Error::VcpkgNotFound(ref detail) => write!(f, "Could not find vcpkg tree: {}", detail),
+            Error::VcpkgNotFound(ref detail) => write!(f, "Could not find Vcpkg tree: {}", detail),
             Error::LibNotFound(ref detail) => {
-                write!(f, "Could not find library in vcpkg tree {}", detail)
+                write!(f, "Could not find library in Vcpkg tree {}", detail)
             }
             Error::__Nonexhaustive => panic!(),
         }
@@ -190,9 +203,8 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
         .join("vcpkg.user.targets");
 
     let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
-        Error::VcpkgNotFound("No vcpkg.user.targets found. run 'vcpkg integrate install' or set \
-                              VCPKG_ROOT environment variable."
-            .to_string())
+        Error::VcpkgNotFound("No vcpkg.user.targets found. Set the VCPKG_ROOT environment \
+        variable or run 'vcpkg integrate install'".to_string())
     }));
     let file = BufReader::new(&file);
 
@@ -230,7 +242,7 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
     if vcpkg_root_path.exists() {
         Ok(())
     } else {
-        Err(Error::VcpkgNotFound(format!("Could not find vcpkg root at {}",
+        Err(Error::VcpkgNotFound(format!("Could not find Vcpkg root at {}",
                                          vcpkg_root_path.to_string_lossy())))
     }
 }
@@ -241,8 +253,7 @@ struct LibNames {
     dll_stem: String,
 }
 
-fn find_vcpkg_target() -> Result<VcpkgTarget, Error> {
-    let msvc_target = try!(msvc_target());
+fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
 
     let vcpkg_root = try!(find_vcpkg_root());
     try!(validate_vcpkg_root(&vcpkg_root));
@@ -348,6 +359,32 @@ impl Config {
     /// architecture and linkage.
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
 
+        // determine the target type, bailing out if it is not some
+        // kind of msvc
+        let msvc_target = try!(msvc_target());
+
+        // bail out if requested to not try at all
+        if env::var_os("VCPKGRS_DISABLE").is_some() {
+            return Err(Error::DisabledByEnv("VCPKGRS_DISABLE".to_owned()));
+        }
+
+        // bail out if requested to not try at all (old)
+        if env::var_os("NO_VCPKG").is_some() {
+            return Err(Error::DisabledByEnv("NO_VCPKG".to_owned()));
+        }
+
+        // bail out if requested to skip this package
+        let abort_var_name = format!("VCPKGRS_NO_{}", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
+        // bail out if requested to skip this package (old)
+        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
@@ -358,18 +395,14 @@ impl Config {
                       });
         }
 
-        // bail out if requested to not try at all
-        if env::var_os("NO_VCPKG").is_some() {
-            return Err(Error::EnvNoPkgConfig("NO_VCPKG".to_owned()));
-        }
+        let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
 
-        // bail out if requested to skip this package
-        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
-        if env::var_os(&abort_var_name).is_some() {
-            return Err(Error::EnvNoPkgConfig(abort_var_name));
+        // require explicit opt-in before using dynamically linked
+        // variants, otherwise cargo install of various things will
+        // stop working if Vcpkg is installed.
+        if !vcpkg_target.is_static && !env::var_os("VCPKGRS_DYNAMIC").is_some() {
+            return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
-
-        let vcpkg_target = try!(find_vcpkg_target());
 
         let mut lib = Library::new(vcpkg_target.is_static);
 
