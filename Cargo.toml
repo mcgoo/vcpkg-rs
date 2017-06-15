@@ -2,4 +2,4 @@
 members = [ "vcpkg", "vcpkg_cli", "systest" ]
 
 [replace]
-"vcpkg:0.2.1" = { path = "vcpkg" }
+"vcpkg:0.2.2" = { path = "vcpkg" }
