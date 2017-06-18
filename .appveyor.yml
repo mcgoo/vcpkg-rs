@@ -47,6 +47,7 @@ test_script:
   - rustc --version
   - cargo --version
   - set RUST_BACKTRACE=1
+  - set RUST_TEST_THREADS=1
   - cargo build --all
   - cargo test --all
   - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
