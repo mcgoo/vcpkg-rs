@@ -9,7 +9,8 @@ description = """
 A library to find native dependencies in a vcpkg tree at build
 time in order to be used in Cargo build scripts.
 """
-keywords = ["build-dependencies"]
+keywords = ["build-dependencies", "windows", "ffi", "win32"]
+categories = ["os::windows-apis"]
 
 [badges]
 travis-ci = { repository = "mcgoo/vcpkg-rs", branch = "master" }
