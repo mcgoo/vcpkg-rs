@@ -29,16 +29,11 @@ install:
   - rustc -V
   - cargo -V
   - git clone https://github.com/Microsoft/vcpkg c:\projects\vcpkg
-  - if not exist "c:\projects\downloads\" mkdir c:\projects\downloads
-#  - if not exist "c:\projects\vcpkg\downloads\" mkdir c:\projects\vcpkg\downloads
   - dir c:\projects\downloads
-  - xcopy c:\projects\downloads\* c:\projects\vcpkg\downloads\
   - c:\projects\vcpkg\bootstrap-vcpkg.bat
   - set VCPKG_ROOT=c:\projects\vcpkg
   - echo yes > %VCPKG_ROOT%\Downloads\AlwaysAllowDownloads
   - if defined VCPKG_ROOT %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
-  - xcopy c:\projects\vcpkg\downloads\* c:\projects\downloads\
-  - dir c:\projects\downloads
 
 build: false
 
@@ -53,6 +48,3 @@ test_script:
   - cargo test --all
   - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
   - cargo run --manifest-path systest\Cargo.toml 
-  
-cache:
-  - C:\projects\downloads\ # -> .appveyor.yml
