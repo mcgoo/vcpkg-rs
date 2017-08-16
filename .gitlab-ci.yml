@@ -14,12 +14,14 @@
     - git pull
     - cd ..\vcpkg-rs
     - cd
-    - if not exist ..\vcp\vcpkg.exe call ..\vcp\bootstrap-vcpkg.bat
+    - call ..\vcp\bootstrap-vcpkg.bat
+    - '"%VCPKG_ROOT%\vcpkg.exe" remove --outdated'
     - '"%VCPKG_ROOT%\vcpkg.exe" install sqlite3 libpq libmysql curl zeromq'
     - rustc --version
     - cargo --version
     - set RUST_BACKTRACE=1
     - set RUST_TEST_THREADS=1
+    - cargo update
     - cargo build --all
     - cargo test --all
     - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
