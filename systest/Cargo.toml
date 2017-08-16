@@ -4,7 +4,10 @@ version = "0.1.0"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
 [dependencies]
+# using * for the dependency version is appropriate here since
+# the purpose of this project is to fail in CI if the latest
+# versions do not build
 curl = "*"
 libz-sys = "*"
-openssl-sys = { git = "https://github.com/sfackler/rust-openssl" }
+openssl-sys = "*"
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg-next" }
