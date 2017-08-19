@@ -2,24 +2,23 @@
 #  - Visual Studio 2015
 environment:
   RUST: stable
+  VCPKG_PANIC: 1
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
   matrix:
     - TARGET: x86_64-pc-windows-msvc
-      VCPKG_PANIC: 1
       RUSTFLAGS: -Ctarget-feature=+crt-static
       RUST: nightly
       VCPKG_DEFAULT_TRIPLET: x64-windows-static
     - TARGET: x86_64-pc-windows-msvc
-      VCPKG_PANIC: 1
       VCPKG_DEFAULT_TRIPLET: x64-windows
+      VCPKGRS_DYNAMIC: 1
     - TARGET: i686-pc-windows-msvc
-      VCPKG_PANIC: 1
       RUSTFLAGS: -Ctarget-feature=+crt-static
       RUST: nightly
       VCPKG_DEFAULT_TRIPLET: x86-windows-static
     - TARGET: i686-pc-windows-msvc
-      VCPKG_PANIC: 1
       VCPKG_DEFAULT_TRIPLET: x86-windows
+      VCPKGRS_DYNAMIC: 1
     
 install:
   # Install Rust
