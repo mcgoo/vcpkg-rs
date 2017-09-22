@@ -10,4 +10,4 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 curl = "*"
 libz-sys = "*"
 openssl-sys = "*"
-zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg-next" }
+zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg" }
