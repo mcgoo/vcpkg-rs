@@ -15,7 +15,7 @@
     - cd ..\vcpkg-rs
     - cd
     - call ..\vcp\bootstrap-vcpkg.bat
-    - '"%VCPKG_ROOT%\vcpkg.exe" remove --outdated'
+    - '"%VCPKG_ROOT%\vcpkg.exe" remove --outdated --recurse'
     - '"%VCPKG_ROOT%\vcpkg.exe" install sqlite3 libpq libmysql curl zeromq'
     - rustc --version
     - cargo --version
