@@ -30,7 +30,7 @@ install:
   - git clone https://github.com/Microsoft/vcpkg c:\projects\vcpkg
   - cd c:\projects\vcpkg
   - git log -1 --format=oneline
-  - git checkout -f eca068e4c5673b888d6470b42d6b5b44b21c4007
+  - git checkout -f f160164219ab0c8422fdcefde3a3def89e5a59de
   - cd c:\projects\vcpkg-rs
   - c:\projects\vcpkg\bootstrap-vcpkg.bat
   - set VCPKG_ROOT=c:\projects\vcpkg
