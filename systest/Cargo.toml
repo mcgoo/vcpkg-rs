@@ -3,6 +3,9 @@ name = "systest"
 version = "0.1.0"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
+[features]
+extras=["zmq-sys"]
+
 [dependencies]
 # using * for the dependency version is appropriate here since
 # the purpose of this project is to fail in CI if the latest
@@ -10,4 +13,4 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 curl = "*"
 libz-sys = "*"
 openssl-sys = "*"
-zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg" }
+zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
