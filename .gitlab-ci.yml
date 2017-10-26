@@ -9,7 +9,7 @@
     - cd ..
     - if not exist vcp git clone https://github.com/Microsoft/vcpkg vcp
     - cd vcp
-    - rem del downloads\*
+    - del /y downloads\*
     - cd
     - git checkout master
     - git pull
