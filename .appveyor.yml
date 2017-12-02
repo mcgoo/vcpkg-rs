@@ -1,9 +1,6 @@
-#os:
-#  - Visual Studio 2015
 environment:
   RUST: stable
   VCPKG_PANIC: 1
-  APPVEYOR_SAVE_CACHE_ON_ERROR: true
   matrix:
     - TARGET: x86_64-pc-windows-msvc
       RUSTFLAGS: -Ctarget-feature=+crt-static

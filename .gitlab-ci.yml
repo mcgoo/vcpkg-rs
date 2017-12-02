@@ -13,6 +13,7 @@
     - cd
     - git checkout master
     - git pull
+    - git log -1 --format=oneline
     - cd ..\vcpkg-rs
     - cd
     - call ..\vcp\bootstrap-vcpkg.bat
@@ -23,6 +24,7 @@
     - set RUST_BACKTRACE=1
     - set RUST_TEST_THREADS=1
     - cargo update
+    - cargo clean
     - cargo build --all --features="extras"
     - cargo test --all --features="extras"
     - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
