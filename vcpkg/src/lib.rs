@@ -59,6 +59,7 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
+use std::ascii::AsciiExt;
 use std::env;
 use std::error;
 use std::fmt;
