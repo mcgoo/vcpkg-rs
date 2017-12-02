@@ -1,32 +1,39 @@
-extern crate vcpkg;
 extern crate clap;
+extern crate vcpkg;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::env;
 
 fn main() {
-
     let app = App::new("vcpkg library finder")
         .about("Allows examining what vcpkg will find in a build script")
         .setting(AppSettings::SubcommandRequired)
-        .arg(Arg::with_name("target")
-            .short("t")
-            .long("target")
-            .value_name("TARGET TRIPLE")
-            .help("the rust toolchain triple to find libraries for")
-            .takes_value(true)
-            .default_value("x86_64-pc-windows-msvc"))
-        .subcommand(SubCommand::with_name("probe")
-            .about("try to find a library")
-            .arg(Arg::with_name("library")
-                .index(1)
-                .required(true)
-                .help("probe for a library and display paths and cargo metadata"))
-            .arg(Arg::with_name("linkage")
-                .short("l")
-                .long("linkage")
+        .arg(
+            Arg::with_name("target")
+                .short("t")
+                .long("target")
+                .value_name("TARGET TRIPLE")
+                .help("the rust toolchain triple to find libraries for")
                 .takes_value(true)
-                .possible_values(&["dll", "static"])));
+                .default_value("x86_64-pc-windows-msvc"),
+        )
+        .subcommand(
+            SubCommand::with_name("probe")
+                .about("try to find a library")
+                .arg(
+                    Arg::with_name("library")
+                        .index(1)
+                        .required(true)
+                        .help("probe for a library and display paths and cargo metadata"),
+                )
+                .arg(
+                    Arg::with_name("linkage")
+                        .short("l")
+                        .long("linkage")
+                        .takes_value(true)
+                        .possible_values(&["dll", "static"]),
+                ),
+        );
 
     let matches = app.get_matches();
 
@@ -34,7 +41,6 @@ fn main() {
     env::set_var("TARGET", matches.value_of("target").unwrap());
 
     if let Some(matches) = matches.subcommand_matches("probe") {
-
         let lib_name = matches.value_of("library").unwrap();
 
         let mut cfg = vcpkg::Config::new();
@@ -98,7 +104,6 @@ fn main() {
             }
             Err(err) => {
                 println!("Failed:  {}", err);
-
             }
         }
     }
