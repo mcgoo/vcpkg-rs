@@ -18,6 +18,8 @@ vcpkg_cli: make probe failure return a nonzero exit code so the build fails
 
 remove crate doc info about the libname -> package mapping. (why?)
 
+look into the possibility of using dotenv to allow setting VCPKG_ROOT
+
 possibly chase the dependencies
 COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_DIR}/msbuild/applocal.ps1
                         -targetBinary $<TARGET_FILE:${name}>
@@ -43,4 +45,6 @@ tree is looking in vcpkg then everything will agree.
 * vcpkg has a per-package output dir that looks like it would be helpful,
 but at present it is undocumented and subject to change. (what I read
 mentioned the possibility of compressing the contents.)
+
+make it warn if you use something that looks like a vcpkg triple in place of a rust triple
 
