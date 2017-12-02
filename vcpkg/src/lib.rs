@@ -59,7 +59,6 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
-use std::ascii::AsciiExt;
 use std::env;
 use std::error;
 use std::fmt;
@@ -220,7 +219,7 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
         split.next(); // eat anything before Project="
         if let Some(found) = split.next() {
             // " is illegal in a Windows pathname
-            if let Some(found) = found.split_terminator("\"").next() {
+            if let Some(found) = found.split_terminator('"').next() {
                 let mut vcpkg_root = PathBuf::from(found);
                 if !(vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop()) {
                     return Err(Error::VcpkgNotFound(
@@ -263,7 +262,7 @@ fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
     try!(validate_vcpkg_root(&vcpkg_root));
 
     let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
-        .unwrap_or(String::new())
+        .unwrap_or(String::new()) // rustc 1.10
         .contains("crt-static");
 
     let mut base = vcpkg_root;
