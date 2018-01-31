@@ -18,9 +18,7 @@ fn main() {
     }
 
     //unsafe{  println!("openssl version is {:?}!", CStr::from_ptr(openssl_sys::SSLEAY_VERSION));}
-    unsafe {
-        openssl_sys::OPENSSL_init_ssl(0, std::ptr::null());
-    }
+    openssl_sys::init();
     //  println!("openssl version is {}!", openssl_sys::OPENSSL_VERSION);
 
     //  unsafe {let ctx = zmq_sys::zmq_init(1); }
