@@ -19,7 +19,7 @@ fn main() {
 
     //unsafe{  println!("openssl version is {:?}!", CStr::from_ptr(openssl_sys::SSLEAY_VERSION));}
     unsafe {
-        openssl_sys::SSL_library_init();
+        openssl_sys::OPENSSL_init_ssl(0, std::ptr::null());
     }
     //  println!("openssl version is {}!", openssl_sys::OPENSSL_VERSION);
 
