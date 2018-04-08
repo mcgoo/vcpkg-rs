@@ -17,4 +17,4 @@ appveyor = { repository = "mcgoo/vcpkg-rs", branch = "master", service="github" 
 
 [dependencies]
 vcpkg = { version = "0.2", path = "../vcpkg" }
-clap = "2.23.2"
+clap = "2.31"
