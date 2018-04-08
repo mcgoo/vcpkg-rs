@@ -59,8 +59,6 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
-#[allow(unused_imports)]
-use std::ascii::AsciiExt;
 use std::env;
 use std::error;
 use std::fmt;
@@ -448,8 +446,7 @@ impl Config {
 
             // verify that the library exists
             let mut lib_location = vcpkg_target.lib_path.clone();
-            lib_location.push(required_lib.lib_stem.clone());
-            lib_location.set_extension("lib");
+            lib_location.push(format!("{}.lib", required_lib.lib_stem));
 
             if !lib_location.exists() {
                 return Err(Error::LibNotFound(lib_location.display().to_string()));
@@ -459,8 +456,7 @@ impl Config {
             // verify that the DLL exists
             if !vcpkg_target.is_static {
                 let mut lib_location = vcpkg_target.bin_path.clone();
-                lib_location.push(required_lib.dll_stem.clone());
-                lib_location.set_extension("dll");
+		lib_location.push(format!("{}.dll", required_lib.dll_stem));
 
                 if !lib_location.exists() {
                     return Err(Error::LibNotFound(lib_location.display().to_string()));
