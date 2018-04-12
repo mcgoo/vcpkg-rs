@@ -32,7 +32,7 @@ install:
   - c:\projects\vcpkg\bootstrap-vcpkg.bat
   - set VCPKG_ROOT=c:\projects\vcpkg
   - echo yes > %VCPKG_ROOT%\Downloads\AlwaysAllowDownloads
-  - if defined VCPKG_ROOT %VCPKG_ROOT%\vcpkg.exe install sqlite3 libpq libmysql curl zeromq 
+  - if defined VCPKG_ROOT %VCPKG_ROOT%\vcpkg.exe install curl zeromq openssl
 
 build: false
 
@@ -46,5 +46,5 @@ test_script:
   - cargo update
   - cargo build --all
   - cargo test --all
-  - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe sqlite3
+  - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe curl
   - cargo run --manifest-path systest\Cargo.toml 
