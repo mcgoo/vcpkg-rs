@@ -1,6 +1,6 @@
 [package]
 name = "vcpkg"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/mcgoo/vcpkg-rs"
