@@ -18,7 +18,7 @@
     - cd
     - call ..\vcp\bootstrap-vcpkg.bat
     - '"%VCPKG_ROOT%\vcpkg.exe" remove --outdated --recurse'
-    - '"%VCPKG_ROOT%\vcpkg.exe" install curl zeromq'
+    - '"%VCPKG_ROOT%\vcpkg.exe" install curl zeromq openssl'
     - rustc --version
     - cargo --version
     - set RUST_BACKTRACE=1
