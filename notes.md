@@ -48,3 +48,16 @@ mentioned the possibility of compressing the contents.)
 
 make it warn if you use something that looks like a vcpkg triple in place of a rust triple
 
+## Making a release
+
+1) run vcpkg_cli and test it
+1) run systest\test.cmd
+1) check that everything is committed and work dir is clean
+1) push to master on gitlab and github
+1) check that gitlab ci, appveyor and travis pass
+1) update changelog, commit and push
+1) update version number in Cargo.toml for the crate to be released
+1) commit
+1) create a tag for the right crate like `git tag vcpkg-rs-0.2.3`
+1) cd to the crate dir and run `run cargo publish`
+1) push
