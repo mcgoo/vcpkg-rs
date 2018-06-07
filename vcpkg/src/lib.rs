@@ -59,8 +59,10 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
+#[allow(deprecated)]
 #[allow(unused_imports)]
 use std::ascii::AsciiExt;
+
 use std::env;
 use std::error;
 use std::fmt;
@@ -68,7 +70,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-// #[derive(Clone)]
+#[derive(Default)]
 pub struct Config {
     /// should the cargo metadata actually be emitted
     cargo_metadata: bool,
@@ -76,8 +78,11 @@ pub struct Config {
     /// should cargo:include= metadata be emitted (defaults to false)
     emit_includes: bool,
 
-    /// libs that must be be found for probing to be considered successful
-    required_libs: Vec<LibNames>,
+    /// .libs that must be be found for probing to be considered successful
+    required_libs: Vec<String>,
+
+    /// .dlls that must be be found for probing to be considered successful
+    required_dlls: Vec<String>,
 
     /// should DLLs be copies to OUT_DIR?
     copy_dlls: bool,
@@ -253,12 +258,6 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
     }
 }
 
-/// names of the libraries
-struct LibNames {
-    lib_stem: String,
-    dll_stem: String,
-}
-
 fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
     let vcpkg_root = try!(find_vcpkg_root());
     try!(validate_vcpkg_root(&vcpkg_root));
@@ -269,30 +268,37 @@ fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
 
     let mut base = vcpkg_root;
     base.push("installed");
+    let status_path = base.join("vcpkg");
+
     let static_appendage = if static_lib { "-static" } else { "" };
 
     let vcpkg_triple = format!("{}{}", msvc_target.to_string(), static_appendage);
-    base.push(vcpkg_triple);
+    base.push(&vcpkg_triple);
 
     let lib_path = base.join("lib");
     let bin_path = base.join("bin");
     let include_path = base.join("include");
 
     Ok(VcpkgTarget {
-        //           vcpkg_triple: vcpkg_triple,
+        vcpkg_triple: vcpkg_triple,
         lib_path: lib_path,
         bin_path: bin_path,
         include_path: include_path,
         is_static: static_lib,
+        status_path: status_path,
     })
 }
 
 /// paths and triple for the chosen target
 struct VcpkgTarget {
-    //    vcpkg_triple: String,
+    vcpkg_triple: String,
     lib_path: PathBuf,
     bin_path: PathBuf,
     include_path: PathBuf,
+
+    // directory containing the status file
+    status_path: PathBuf,
+
     is_static: bool,
 }
 
@@ -300,9 +306,10 @@ impl Config {
     pub fn new() -> Config {
         Config {
             cargo_metadata: true,
-            emit_includes: false,
-            required_libs: Vec::new(),
             copy_dlls: true,
+            ..Default::default()
+            // emit_includes: false,
+            // required_libs: Vec::new(),
         }
     }
 
@@ -314,10 +321,8 @@ impl Config {
     /// `.libname("ssleay32")` will look for ssleay32.lib and also ssleay32.dll if
     /// dynamic linking is selected.
     pub fn lib_name(&mut self, lib_stem: &str) -> &mut Config {
-        self.required_libs.push(LibNames {
-            lib_stem: lib_stem.to_owned(),
-            dll_stem: lib_stem.to_owned(),
-        });
+        self.required_libs.push(lib_stem.to_owned());
+        self.required_dlls.push(lib_stem.to_owned());
         self
     }
 
@@ -329,10 +334,8 @@ impl Config {
     /// `.lib_names("libcurl_imp","curl")` will look for libcurl_imp.lib and also curl.dll if
     /// dynamic linking is selected.
     pub fn lib_names(&mut self, lib_stem: &str, dll_stem: &str) -> &mut Config {
-        self.required_libs.push(LibNames {
-            lib_stem: lib_stem.to_owned(),
-            dll_stem: dll_stem.to_owned(),
-        });
+        self.required_libs.push(lib_stem.to_owned());
+        self.required_dlls.push(dll_stem.to_owned());
         self
     }
 
@@ -390,10 +393,8 @@ impl Config {
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
-            self.required_libs.push(LibNames {
-                lib_stem: port_name.to_owned(),
-                dll_stem: port_name.to_owned(),
-            });
+            self.required_libs.push(port_name.to_owned());
+            self.required_dlls.push(port_name.to_owned());
         }
 
         let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
@@ -413,7 +414,7 @@ impl Config {
                 vcpkg_target.include_path.display()
             ));
         }
-        lib.include_paths.push(vcpkg_target.include_path);
+        lib.include_paths.push(vcpkg_target.include_path.clone());
 
         lib.cargo_metadata.push(format!(
             "cargo:rustc-link-search=native={}",
@@ -439,32 +440,33 @@ impl Config {
             if vcpkg_target.is_static {
                 lib.cargo_metadata.push(format!(
                     "cargo:rustc-link-lib=static={}",
-                    required_lib.lib_stem
+                    required_lib
                 ));
             } else {
                 lib.cargo_metadata
-                    .push(format!("cargo:rustc-link-lib={}", required_lib.lib_stem));
+                    .push(format!("cargo:rustc-link-lib={}", required_lib));
             }
 
             // verify that the library exists
             let mut lib_location = vcpkg_target.lib_path.clone();
-            lib_location.push(format!("{}.lib", required_lib.lib_stem));
+            lib_location.push(required_lib.clone() + ".lib");
 
             if !lib_location.exists() {
                 return Err(Error::LibNotFound(lib_location.display().to_string()));
             }
             lib.found_libs.push(lib_location);
-
-            // verify that the DLL exists
-            if !vcpkg_target.is_static {
-                let mut lib_location = vcpkg_target.bin_path.clone();
-		lib_location.push(format!("{}.dll", required_lib.dll_stem));
-
-                if !lib_location.exists() {
-                    return Err(Error::LibNotFound(lib_location.display().to_string()));
-                }
-                lib.found_dlls.push(lib_location);
-            }
+	        if !vcpkg_target.is_static {
+	            for required_dll in &self.required_dlls {
+	                let mut dll_location = vcpkg_target.bin_path.clone();
+	                dll_location.push(required_dll.clone() + ".dll");
+	
+	                // verify that the DLL exists
+	                if !dll_location.exists() {
+	                    return Err(Error::LibNotFound(dll_location.display().to_string()));
+	                }
+	                lib.found_dlls.push(dll_location);
+	            }
+	        }
         }
 
         if self.copy_dlls {
