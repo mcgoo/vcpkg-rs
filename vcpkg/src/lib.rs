@@ -432,7 +432,7 @@ impl Config {
                     .to_str()
                     .expect("failed to convert string type")
             ));
-            // this path is dropped by recent version of cargo hence the copies to OUT_DIR below
+            // this path is dropped by recent versions of cargo hence the copies to OUT_DIR below
             lib.dll_paths.push(vcpkg_target.bin_path.clone());
         }
         drop(port_name);
