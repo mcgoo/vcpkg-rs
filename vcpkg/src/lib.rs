@@ -435,17 +435,27 @@ impl Config {
             // this path is dropped by recent versions of cargo hence the copies to OUT_DIR below
             lib.dll_paths.push(vcpkg_target.bin_path.clone());
         }
-        drop(port_name);
-        for required_lib in &self.required_libs {
-            if vcpkg_target.is_static {
-                lib.cargo_metadata.push(format!(
-                    "cargo:rustc-link-lib=static={}",
-                    required_lib
-                ));
-            } else {
-                lib.cargo_metadata
-                    .push(format!("cargo:rustc-link-lib={}", required_lib));
+
+        try!(self.emit_libs(&mut lib, &vcpkg_target));
+
+        if self.copy_dlls {
+            try!(self.do_dll_copy(&mut lib));
+        }
+
+        if self.cargo_metadata {
+            for line in &lib.cargo_metadata {
+                println!("{}", line);
             }
+        }
+        Ok(lib)
+    }
+
+    fn emit_libs(&mut self, lib: &mut Library, vcpkg_target: &VcpkgTarget) -> Result<(), Error> {
+        for required_lib in &self.required_libs {
+            // this could use static-nobundle= for static libraries but it is apparently
+            // not necessary to make the distinction for windows-msvc.
+            lib.cargo_metadata
+                .push(format!("cargo:rustc-link-lib={}", required_lib));
 
             // verify that the library exists
             let mut lib_location = vcpkg_target.lib_path.clone();
@@ -455,60 +465,59 @@ impl Config {
                 return Err(Error::LibNotFound(lib_location.display().to_string()));
             }
             lib.found_libs.push(lib_location);
-	        if !vcpkg_target.is_static {
-	            for required_dll in &self.required_dlls {
-	                let mut dll_location = vcpkg_target.bin_path.clone();
-	                dll_location.push(required_dll.clone() + ".dll");
-	
-	                // verify that the DLL exists
-	                if !dll_location.exists() {
-	                    return Err(Error::LibNotFound(dll_location.display().to_string()));
-	                }
-	                lib.found_dlls.push(dll_location);
-	            }
-	        }
         }
 
-        if self.copy_dlls {
-            if let Some(target_dir) = env::var_os("OUT_DIR") {
-                if !lib.found_dlls.is_empty() {
-                    for file in &lib.found_dlls {
-                        let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
-                        dest_path.push(Path::new(file.file_name().unwrap()));
-                        try!(fs::copy(file, &dest_path).map_err(|_| {
+        if !vcpkg_target.is_static {
+            for required_dll in &self.required_dlls {
+                let mut dll_location = vcpkg_target.bin_path.clone();
+                dll_location.push(required_dll.clone() + ".dll");
+
+                // verify that the DLL exists
+                if !dll_location.exists() {
+                    return Err(Error::LibNotFound(dll_location.display().to_string()));
+                }
+                lib.found_dlls.push(dll_location);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn do_dll_copy(&mut self, lib: &mut Library) -> Result<(), Error> {
+        if let Some(target_dir) = env::var_os("OUT_DIR") {
+            if !lib.found_dlls.is_empty() {
+                for file in &lib.found_dlls {
+                    let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
+                    dest_path.push(Path::new(file.file_name().unwrap()));
+                    try!(
+                        fs::copy(file, &dest_path).map_err(|_| {
                             Error::LibNotFound(format!(
                                 "Can't copy file {} to {}",
                                 file.to_string_lossy(),
                                 dest_path.to_string_lossy()
                             ))
-                        }));
-                        println!(
-                            "vcpkg build helper copied {} to {}",
-                            file.to_string_lossy(),
-                            dest_path.to_string_lossy()
-                        );
-                    }
-                    lib.cargo_metadata.push(format!(
-                        "cargo:rustc-link-search=native={}",
-                        env::var("OUT_DIR").unwrap()
-                    ));
-                    // work around https://github.com/rust-lang/cargo/issues/3957
-                    lib.cargo_metadata.push(format!(
-                        "cargo:rustc-link-search={}",
-                        env::var("OUT_DIR").unwrap()
-                    ));
+                        })
+                    );
+                    println!(
+                        "vcpkg build helper copied {} to {}",
+                        file.to_string_lossy(),
+                        dest_path.to_string_lossy()
+                    );
                 }
-            } else {
-                return Err(Error::LibNotFound("Unable to get OUT_DIR".to_owned()));
+                lib.cargo_metadata.push(format!(
+                    "cargo:rustc-link-search=native={}",
+                    env::var("OUT_DIR").unwrap()
+                ));
+                // work around https://github.com/rust-lang/cargo/issues/3957
+                lib.cargo_metadata.push(format!(
+                    "cargo:rustc-link-search={}",
+                    env::var("OUT_DIR").unwrap()
+                ));
             }
+        } else {
+            return Err(Error::LibNotFound("Unable to get OUT_DIR".to_owned()));
         }
-
-        if self.cargo_metadata {
-            for line in &lib.cargo_metadata {
-                println!("{}", line);
-            }
-        }
-        Ok(lib)
+        Ok(())
     }
 }
 
