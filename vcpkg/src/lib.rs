@@ -63,8 +63,10 @@
 #[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
+use std::collections::BTreeMap;
 use std::env;
 use std::error;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
@@ -145,6 +147,9 @@ pub enum Error {
     /// Library not found in vcpkg tree
     LibNotFound(String),
 
+    /// Could not understand vcpkg installation
+    VcpkgInstallation(String),
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -157,7 +162,7 @@ impl error::Error for Error {
             Error::NotMSVC => "vcpkg-rs only can only find libraries for MSVC ABI 64 bit builds",
             Error::VcpkgNotFound(_) => "could not find Vcpkg tree",
             Error::LibNotFound(_) => "could not find library in Vcpkg tree",
-            // Error::LibNotFound(_) => "could not find library in vcpkg tree",
+            Error::VcpkgInstallation(_) => "could not look up details of packages in vcpkg tree",
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -183,13 +188,24 @@ impl fmt::Display for Error {
             Error::LibNotFound(ref detail) => {
                 write!(f, "Could not find library in Vcpkg tree {}", detail)
             }
+            Error::VcpkgInstallation(ref detail) => write!(
+                f,
+                "Could not look up details of packages in vcpkg tree {}",
+                detail
+            ),
             Error::__Nonexhaustive => panic!(),
         }
     }
 }
 
+/// Deprecated in favor of the find_package function
+#[doc(hidden)]
 pub fn probe_package(name: &str) -> Result<Library, Error> {
     Config::new().probe(name)
+}
+
+pub fn find_package(name: &str) -> Result<Library, Error> {
+    Config::new().find_package(name)
 }
 
 fn find_vcpkg_root() -> Result<PathBuf, Error> {
@@ -289,6 +305,207 @@ fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
     })
 }
 
+#[derive(Clone, Debug)]
+struct Port {
+    // dlls if any
+    dlls: Vec<String>,
+
+    // libs (static or import)
+    libs: Vec<String>,
+
+    // ports that this port depends on
+    deps: Vec<String>,
+}
+
+fn load_port_manifest(
+    path: &PathBuf,
+    port: &str,
+    version: &str,
+    vcpkg_triple: &str,
+) -> Result<(Vec<String>, Vec<String>), Error> {
+    let manifest_file = path.join("info")
+        .join(format!("{}_{}_{}.list", port, version, vcpkg_triple));
+
+    let mut dlls = Vec::new();
+    let mut libs = Vec::new();
+
+    let f = try!(
+        File::open(&manifest_file).map_err(|_| {
+            Error::VcpkgInstallation(format!(
+                "Could not open port manifest file {}",
+                manifest_file.display()
+            ))
+        })
+    );
+
+    let file = BufReader::new(&f);
+
+    let dll_prefix = Path::new(vcpkg_triple).join("bin");
+    let lib_prefix = Path::new(vcpkg_triple).join("lib");
+
+    for line in file.lines() {
+        let line = line.unwrap();
+
+        let file_path = Path::new(&line);
+
+        if let Ok(dll) = file_path.strip_prefix(&dll_prefix) {
+            if dll.extension() == Some(OsStr::new("dll"))
+                && dll.components().collect::<Vec<_>>().len() == 1
+            {
+                // match "mylib.dll" but not "debug/mylib.dll" or "manual_link/mylib.dll"
+
+                dll.to_str().map(|s| dlls.push(s.to_owned()));
+            }
+        } else if let Ok(lib) = file_path.strip_prefix(&lib_prefix) {
+            if lib.extension() == Some(OsStr::new("lib"))
+                && lib.components().collect::<Vec<_>>().len() == 1
+            {
+                lib.to_str().map(|s| libs.push(s.to_owned()));
+            }
+        }
+    }
+
+    Ok((dlls, libs))
+}
+
+// load ports from the status file or one of the incremental updates
+fn load_port_file(
+    filename: &PathBuf,
+    port_info: &mut Vec<BTreeMap<String, String>>,
+) -> Result<(), Error> {
+    let f = try!(
+        File::open(&filename).map_err(|e| {
+            Error::VcpkgInstallation(format!(
+                "Could not open status file at {}: {}",
+                filename.display(),
+                e
+            ))
+        })
+    );
+    let file = BufReader::new(&f);
+    let mut current: BTreeMap<String, String> = BTreeMap::new();
+    for line in file.lines() {
+        let line = line.unwrap();
+        let parts = line.splitn(2, ": ").clone().collect::<Vec<_>>();
+        if parts.len() == 2 {
+            //            println!("{}: {}", parts[0], parts[1]);
+            current.insert(parts[0].trim().into(), parts[1].trim().into());
+        } else if parts.len() == 1 {
+            //            println!("pushing it");
+            port_info.push(current.clone());
+            current.clear();
+        } else {
+            //          println!("wat?");
+            // couldn't parse the file
+            // maybe return Err()?
+        }
+        //    println!("courant {:?}", current);
+    }
+
+    if !current.is_empty() {
+        //        println!("(unpushed) current is {:+?}", current);
+        port_info.push(current);
+    }
+
+    Ok(())
+}
+
+fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
+    let mut ports = BTreeMap::new();
+
+    let mut port_info: Vec<BTreeMap<String, String>> = Vec::new();
+
+    // load the main status file
+    let status_filename = target.status_path.join("status");
+    try!(load_port_file(&status_filename, &mut port_info));
+
+    // load updates to the status file that have yet to be normalized
+    let status_update_dir = target.status_path.join("updates");
+
+    let paths = try!(
+        fs::read_dir(status_update_dir).map_err(|e| {
+            Error::VcpkgInstallation(format!("could not read status file updates dir: {}", e))
+        })
+    );
+
+    // get all of the paths of the update files into a Vec<PathBuf>
+    let mut paths = try!(
+        paths
+            .map(|rde| rde.map(|de| de.path())) // Result<DirEntry, io::Error> -> Result<PathBuf, io::Error>
+            .collect::<Result<Vec<_>, _>>() // collect into Result<Vec<PathBuf>, io::Error>
+            .map_err(|e| {
+                Error::VcpkgInstallation(format!(
+                    "could not read status file update filenames: {}",
+                    e
+                ))
+            })
+    );
+
+    // Sort the paths and read them. This could be done directly from the iterator if
+    // read_dir() guarantees that the files will be read in alpha order but that appears
+    // to be unspecified as the underlying operating system calls used are unspecified
+    // https://doc.rust-lang.org/nightly/std/fs/fn.read_dir.html#platform-specific-behavior
+    paths.sort();
+    for path in paths {
+        //        println!("Name: {}", path.display());
+        try!(load_port_file(&path, &mut port_info));
+        println!("num port descriptors = {}", port_info.len());
+    }
+
+    for current in &port_info {
+        if let Some(name) = current.get("Package") {
+            if let Some(arch) = current.get("Architecture") {
+                if *arch == target.vcpkg_triple {
+                    // println!("-++++++-");
+                    // println!("{:?}", current);
+                    // println!("--------");
+
+                    let deps = if let Some(deps) = current.get("Depends") {
+                        deps.split(", ").map(|x| x.to_owned()).collect()
+                    } else {
+                        Vec::new()
+                    };
+
+                    if current
+                        .get("Status")
+                        .unwrap_or(&String::new())
+                        .ends_with(" installed")
+                    {
+                        // hmmm
+                        let version = current.get("Version");
+                        if version.is_none() {
+                            println!("didn't know how to deal with port :-");
+                            println!("{:+?}", current);
+                            //panic!();
+                            continue;
+                        }
+                        let version = version.unwrap();
+                        let lib_info = try!(load_port_manifest(
+                            &target.status_path,
+                            name,
+                            version,
+                            &target.vcpkg_triple
+                        ));
+                        let port = Port {
+                            dlls: lib_info.0,
+                            libs: lib_info.1,
+                            deps: deps,
+                        };
+
+                        ports.insert(name.clone(), port);
+                    } else {
+                        // remove it?
+                        //ports.remove(name);
+                        //println!("would delete {} for arch {}", name, arch);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(ports)
+}
+
 /// paths and triple for the chosen target
 struct VcpkgTarget {
     vcpkg_triple: String,
@@ -363,6 +580,8 @@ impl Config {
     ///
     /// This will use all configuration previously set to select the
     /// architecture and linkage.
+    /// Deprecated in favor of the find_package function
+    #[doc(hidden)]
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
@@ -519,6 +738,158 @@ impl Config {
         }
         Ok(())
     }
+
+    /// Find the package `port_name` in a Vcpkg tree.
+    ///
+    /// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
+    /// named, and any (non-system) libraries that they depend on.
+    ///
+    /// This will select the architecture and linkage based on environment
+    /// variables and build flags as described in the module docs, and any configuration
+    /// set on the builder.
+    pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
+        // determine the target type, bailing out if it is not some
+        // kind of msvc
+        let msvc_target = try!(msvc_target());
+
+        // bail out if requested to not try at all
+        if env::var_os("VCPKGRS_DISABLE").is_some() {
+            return Err(Error::DisabledByEnv("VCPKGRS_DISABLE".to_owned()));
+        }
+
+        // bail out if requested to not try at all (old)
+        if env::var_os("NO_VCPKG").is_some() {
+            return Err(Error::DisabledByEnv("NO_VCPKG".to_owned()));
+        }
+
+        // bail out if requested to skip this package
+        let abort_var_name = format!("VCPKGRS_NO_{}", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
+        // bail out if requested to skip this package (old)
+        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
+        let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
+
+        // if no overrides have been selected, then the Vcpkg port name
+        // is the the .lib name and the .dll name
+        if self.required_libs.is_empty() {
+            let ports = try!(load_ports(&vcpkg_target));
+
+            if ports.get(&port_name.to_owned()).is_none() {
+                return Err(Error::LibNotFound(port_name.to_owned()));
+            }
+
+            // the complete set of ports required
+            let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
+
+            // working of ports that we need to include
+            //        let mut ports_to_scan: BTreeSet<String> = BTreeSet::new();
+            //        ports_to_scan.insert(port_name.to_owned());
+            let mut ports_to_scan = vec![port_name.to_owned()]; //: Vec<String> = BTreeSet::new();
+
+            while !ports_to_scan.is_empty() {
+                let port_name = ports_to_scan.pop().unwrap();
+
+                if required_ports.contains_key(&port_name) {
+                    continue;
+                }
+
+                if let Some(port) = ports.get(&port_name) {
+                    for dep in &port.deps {
+                        ports_to_scan.push(dep.clone());
+                    }
+                    required_ports.insert(port_name, (*port).clone());
+                } else {
+                    // what?
+                }
+            }
+
+            // for port in ports {
+            //     println!("port {:?}", port);
+            // }
+            // println!("=============================");
+            //for port in &required_ports {
+            //   println!("required port {:?}", port);
+            //}
+
+            // if no overrides have been selected, then the Vcpkg port name
+            // is the the .lib name and the .dll name
+            if self.required_libs.is_empty() {
+                for (_, port) in &required_ports {
+                    self.required_libs.extend(port.libs.iter().map(|s| {
+                        Path::new(&s)
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned()
+                    }));
+                    self.required_dlls
+                        .extend(port.dlls.iter().cloned().map(|s| {
+                            Path::new(&s)
+                                .file_stem()
+                                .unwrap()
+                                .to_string_lossy()
+                                .into_owned()
+                        }));
+                }
+            }
+        }
+        // require explicit opt-in before using dynamically linked
+        // variants, otherwise cargo install of various things will
+        // stop working if Vcpkg is installed.
+        if !vcpkg_target.is_static && !env::var_os("VCPKGRS_DYNAMIC").is_some() {
+            return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
+        }
+
+        let mut lib = Library::new(vcpkg_target.is_static);
+
+        if self.emit_includes {
+            lib.cargo_metadata.push(format!(
+                "cargo:include={}",
+                vcpkg_target.include_path.display()
+            ));
+        }
+        lib.include_paths.push(vcpkg_target.include_path.clone());
+
+        lib.cargo_metadata.push(format!(
+            "cargo:rustc-link-search=native={}",
+            vcpkg_target
+                .lib_path
+                .to_str()
+                .expect("failed to convert string type")
+        ));
+        lib.link_paths.push(vcpkg_target.lib_path.clone());
+        if !vcpkg_target.is_static {
+            lib.cargo_metadata.push(format!(
+                "cargo:rustc-link-search=native={}",
+                vcpkg_target
+                    .bin_path
+                    .to_str()
+                    .expect("failed to convert string type")
+            ));
+            // this path is dropped by recent versions of cargo hence the copies to OUT_DIR below
+            lib.dll_paths.push(vcpkg_target.bin_path.clone());
+        }
+
+        try!(self.emit_libs(&mut lib, &vcpkg_target));
+
+        if self.copy_dlls {
+            try!(self.do_dll_copy(&mut lib));
+        }
+
+        if self.cargo_metadata {
+            for line in &lib.cargo_metadata {
+                println!("{}", line);
+            }
+        }
+        Ok(lib)
+    }
 }
 
 impl Library {
@@ -552,4 +923,119 @@ fn msvc_target() -> Result<MSVCTarget, Error> {
         // everything else is x86
         Ok(MSVCTarget::X86)
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use std::env;
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn tests_set_environment_so_RUST_TEST_THREADS_must_be_set_to_1_in_environment() {
+        assert_eq!(env::var("RUST_TEST_THREADS"), Ok("1".to_string()));
+    }
+
+    #[test]
+    fn do_nothing_for_non_msvc_target() {
+        env::set_var("VCPKG_ROOT", "/");
+        env::set_var("TARGET", "x86_64-unknown-linux-gnu");
+        assert!(match ::probe_package("foo") {
+            Err(Error::NotMSVC) => true,
+            _ => false,
+        });
+
+        env::set_var("TARGET", "x86_64-pc-windows-gnu");
+        assert_eq!(env::var("TARGET"), Ok("x86_64-pc-windows-gnu".to_string()));
+        assert!(match ::probe_package("foo") {
+            Err(Error::NotMSVC) => true,
+            _ => false,
+        });
+        env::remove_var("TARGET");
+        env::remove_var("VCPKG_ROOT");
+    }
+
+    #[test]
+    fn do_nothing_for_bailout_variables_set() {
+        env::set_var("VCPKG_ROOT", "/");
+        env::set_var("TARGET", "x86_64-pc-windows-msvc");
+
+        for &var in &[
+            "VCPKGRS_DISABLE",
+            "VCPKGRS_NO_FOO",
+            "FOO_NO_VCPKG",
+            "NO_VCPKG",
+        ] {
+            env::set_var(var, "1");
+            assert!(match ::probe_package("foo") {
+                Err(Error::DisabledByEnv(ref v)) if v == var => true,
+                _ => false,
+            });
+            env::remove_var(var);
+        }
+        env::remove_var("TARGET");
+        env::remove_var("VCPKG_ROOT");
+    }
+
+    // these tests are good but are leaning on a real vcpkg installation
+
+    // #[test]
+    // fn default_build_refuses_dynamic() {
+    //     env::set_var("VCPKG_ROOT", "/");
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     println!("Result is {:?}", ::probe_package("foo"));
+    //     assert!(match ::probe_package("foo") {
+    //                 Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
+    //                 //                    Err(Error::RequiredEnvMissing(_)) => true,
+    //                 _ => false,
+    //             });
+    //     env::remove_var("TARGET");
+    //     env::remove_var("VCPKG_ROOT");
+    // }
+
+    // #[test]
+    // fn dynamic_build_works_but_cant_find_lib() {
+    //     env::set_var("VCPKG_ROOT", "/");
+    //     // this is a garbage test - "check it gets past x but fails at y"
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     env::set_var("VCPKGRS_DYNAMIC", "1");
+    //     assert!(match ::probe_package("foo") {
+    //                 Err(Error::LibNotFound(_)) => true,
+    //                 _ => false,
+    //             });
+    //     env::remove_var("VCPKGRS_DYNAMIC");
+    //     env::remove_var("TARGET");
+    //     env::remove_var("VCPKG_ROOT");
+    // }
+
+    // #[test]
+    // fn static_build_works_but_cant_find_lib() {
+    //     env::set_var("VCPKG_ROOT", "/");
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     // CARGO_CFG_TARGET_FEATURE is set in response to
+    //     // RUSTFLAGS=-Ctarget-feature=+crt-static. It would
+    //     //  be nice to test that also.
+    //     env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
+    //     assert!(match ::probe_package("foo") {
+    //                 Err(Error::LibNotFound(_)) => true,
+    //                 _ => false,
+    //             });
+    //     env::remove_var("CARGO_CFG_TARGET_FEATURE");
+    //     env::remove_var("TARGET");
+    //     env::remove_var("VCPKG_ROOT");
+    // }
+
+    // #[test]
+    // fn do_nothing_for_bailout_variables_set() {
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     println!("{:?}", ::probe_package("foo"));
+    //     assert!(match ::probe_package("foo") {
+    //                 Err(Error::LibNotFound(_)) => true,
+    //                 _ => false,
+    //             });
+    //     assert!(false);
+    //     env::remove_var("TARGET");
+    // }
 }
