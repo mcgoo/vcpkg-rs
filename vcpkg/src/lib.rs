@@ -145,7 +145,8 @@ pub enum Error {
     /// Library not found in vcpkg tree
     LibNotFound(String),
 
-    #[doc(hidden)] __Nonexhaustive,
+    #[doc(hidden)]
+    __Nonexhaustive,
 }
 
 impl error::Error for Error {
@@ -199,9 +200,9 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
 
     // see if there is a per-user vcpkg tree that has been integrated into msbuild
     // using `vcpkg integrate install`
-    let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| {
-        Error::VcpkgNotFound("Failed to read LOCALAPPDATA environment variable".to_string())
-    })); // not present or can't utf8
+    let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| Error::VcpkgNotFound(
+        "Failed to read LOCALAPPDATA environment variable".to_string()
+    ))); // not present or can't utf8
     let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
         .join("vcpkg")
         .join("vcpkg.user.targets");
@@ -216,12 +217,10 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
     let file = BufReader::new(&file);
 
     for line in file.lines() {
-        let line = try!(line.map_err(|_| {
-            Error::VcpkgNotFound(format!(
-                "Parsing of {} failed.",
-                vcpkg_user_targets_path.to_string_lossy().to_owned()
-            ))
-        }));
+        let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
+            "Parsing of {} failed.",
+            vcpkg_user_targets_path.to_string_lossy().to_owned()
+        ))));
         let mut split = line.split("Project=\"");
         split.next(); // eat anything before Project="
         if let Some(found) = split.next() {
@@ -229,9 +228,10 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
             if let Some(found) = found.split_terminator('"').next() {
                 let mut vcpkg_root = PathBuf::from(found);
                 if !(vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop()) {
-                    return Err(Error::VcpkgNotFound(
-                        format!("Could not find vcpkg root above {}", found),
-                    ));
+                    return Err(Error::VcpkgNotFound(format!(
+                        "Could not find vcpkg root above {}",
+                        found
+                    )));
                 }
                 return Ok(vcpkg_root);
             }
