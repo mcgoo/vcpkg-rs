@@ -415,9 +415,13 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
 
     let mut port_info: Vec<BTreeMap<String, String>> = Vec::new();
 
-    // load the main status file
+    // load the main status file. It is not an error if this file does not
+    // exist. If the only command that has been run in a Vcpkg installation
+    // is a single `vcpkg install package` then there will likely be no
+    // status file, only incremental updates. This is the typical case when
+    // running in a CI environment.
     let status_filename = target.status_path.join("status");
-    try!(load_port_file(&status_filename, &mut port_info));
+    load_port_file(&status_filename, &mut port_info).ok();
 
     // load updates to the status file that have yet to be normalized
     let status_update_dir = target.status_path.join("updates");
