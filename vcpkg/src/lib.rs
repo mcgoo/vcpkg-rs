@@ -59,6 +59,10 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
+#[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
+
 #[allow(deprecated)]
 #[allow(unused_imports)]
 use std::ascii::AsciiExt;
@@ -931,19 +935,19 @@ fn msvc_target() -> Result<MSVCTarget, Error> {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use std::env;
-
     extern crate tempdir;
 
-    #[test]
-    #[allow(non_snake_case)]
-    fn tests_set_environment_so_RUST_TEST_THREADS_must_be_set_to_1_in_environment() {
-        assert_eq!(env::var("RUST_TEST_THREADS"), Ok("1".to_string()));
+    use super::*;
+    use std::env;
+    use std::sync::Mutex;
+
+    lazy_static! {
+        static ref LOCK: Mutex<()> = Mutex::new(());
     }
 
     #[test]
     fn do_nothing_for_non_msvc_target() {
+        let _g = LOCK.lock();
         env::set_var("VCPKG_ROOT", "/");
         env::set_var("TARGET", "x86_64-unknown-linux-gnu");
         assert!(match ::probe_package("foo") {
@@ -963,6 +967,7 @@ mod tests {
 
     #[test]
     fn do_nothing_for_bailout_variables_set() {
+        let _g = LOCK.lock();
         env::set_var("VCPKG_ROOT", "/");
         env::set_var("TARGET", "x86_64-pc-windows-msvc");
 
@@ -987,6 +992,7 @@ mod tests {
 
     #[test]
     fn default_build_refuses_dynamic() {
+        let _g = LOCK.lock();
         clean_env();
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
         env::set_var("TARGET", "x86_64-pc-windows-msvc");
@@ -1000,6 +1006,7 @@ mod tests {
 
     #[test]
     fn static_build_finds_lib() {
+        let _g = LOCK.lock();
         clean_env();
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "x86_64-pc-windows-msvc");
@@ -1020,6 +1027,7 @@ mod tests {
 
     #[test]
     fn dynamic_build_finds_lib() {
+        let _g = LOCK.lock();
         clean_env();
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
         env::set_var("TARGET", "x86_64-pc-windows-msvc");

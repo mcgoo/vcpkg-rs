@@ -266,6 +266,7 @@ source = "git+https://github.com/mcgoo/vcpkg-rs?branch=deps#bda19cdb59bba9880b6f
 name = "vcpkg"
 version = "0.2.3"
 dependencies = [
+ "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
