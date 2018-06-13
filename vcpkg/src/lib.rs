@@ -935,6 +935,8 @@ mod tests {
     use super::*;
     use std::env;
 
+    extern crate tempdir;
+
     #[test]
     #[allow(non_snake_case)]
     fn tests_set_environment_so_RUST_TEST_THREADS_must_be_set_to_1_in_environment() {
@@ -984,62 +986,105 @@ mod tests {
 
     // these tests are good but are leaning on a real vcpkg installation
 
-    // #[test]
-    // fn default_build_refuses_dynamic() {
-    //     env::set_var("VCPKG_ROOT", "/");
-    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
-    //     println!("Result is {:?}", ::probe_package("foo"));
-    //     assert!(match ::probe_package("foo") {
-    //                 Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
-    //                 //                    Err(Error::RequiredEnvMissing(_)) => true,
-    //                 _ => false,
-    //             });
-    //     env::remove_var("TARGET");
-    //     env::remove_var("VCPKG_ROOT");
-    // }
+    #[test]
+    fn default_build_refuses_dynamic() {
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
+        env::set_var("TARGET", "x86_64-pc-windows-msvc");
+        println!("Result is {:?}", ::find_package("libmysql"));
+        assert!(match ::find_package("libmysql") {
+            Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
+            _ => false,
+        });
+        clean_env();
+    }
+
+    #[test]
+    fn static_build_finds_lib() {
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "x86_64-pc-windows-msvc");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        // CARGO_CFG_TARGET_FEATURE is set in response to
+        // RUSTFLAGS=-Ctarget-feature=+crt-static. It would
+        //  be nice to test that also.
+        env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
+        println!("Result is {:?}", ::find_package("libmysql"));
+        assert!(match ::find_package("libmysql") {
+            Ok(_) => true,
+            _ => false,
+        });
+        clean_env();
+    }
+
+    #[test]
+    fn dynamic_build_finds_lib() {
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
+        env::set_var("TARGET", "x86_64-pc-windows-msvc");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        println!("Result is {:?}", ::find_package("libmysql"));
+        assert!(match ::find_package("libmysql") {
+            Ok(_) => true,
+            _ => false,
+        });
+        clean_env();
+    }
 
     // #[test]
-    // fn dynamic_build_works_but_cant_find_lib() {
-    //     env::set_var("VCPKG_ROOT", "/");
-    //     // this is a garbage test - "check it gets past x but fails at y"
+    // fn dynamic_build_package_specific_bailout() {
+    //     clean_env();
+    //     env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
     //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
     //     env::set_var("VCPKGRS_DYNAMIC", "1");
-    //     assert!(match ::probe_package("foo") {
-    //                 Err(Error::LibNotFound(_)) => true,
-    //                 _ => false,
-    //             });
-    //     env::remove_var("VCPKGRS_DYNAMIC");
-    //     env::remove_var("TARGET");
-    //     env::remove_var("VCPKG_ROOT");
+    //     env::set_var("VCPKGRS_NO_LIBMYSQL", "1");
+
+    //     println!("Result is {:?}", ::find_package("libmysql"));
+    //     assert!(match ::find_package("libmysql") {
+    //         Err(Error::DisabledByEnv(ref v)) if v == "VCPKGRS_NO_LIBMYSQL" => true,
+    //         _ => false,
+    //     });
+    //     clean_env();
     // }
 
     // #[test]
-    // fn static_build_works_but_cant_find_lib() {
-    //     env::set_var("VCPKG_ROOT", "/");
+    // fn dynamic_build_global_bailout() {
+    //     clean_env();
+    //     env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
     //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
-    //     // CARGO_CFG_TARGET_FEATURE is set in response to
-    //     // RUSTFLAGS=-Ctarget-feature=+crt-static. It would
-    //     //  be nice to test that also.
-    //     env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
-    //     assert!(match ::probe_package("foo") {
-    //                 Err(Error::LibNotFound(_)) => true,
-    //                 _ => false,
-    //             });
-    //     env::remove_var("CARGO_CFG_TARGET_FEATURE");
-    //     env::remove_var("TARGET");
-    //     env::remove_var("VCPKG_ROOT");
+    //     env::set_var("VCPKGRS_DYNAMIC", "1");
+    //     env::set_var("VCPKGRS_DISABLE", "1");
+
+    //     println!("Result is {:?}", ::find_package("libmysql"));
+    //     assert!(match ::find_package("libmysql") {
+    //         Err(Error::DisabledByEnv(ref v)) if v == "VCPKGRS_DISABLE" => true,
+    //         _ => false,
+    //     });
+    //     clean_env();
     // }
 
-    // #[test]
-    // fn do_nothing_for_bailout_variables_set() {
-    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
-    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
-    //     println!("{:?}", ::probe_package("foo"));
-    //     assert!(match ::probe_package("foo") {
-    //                 Err(Error::LibNotFound(_)) => true,
-    //                 _ => false,
-    //             });
-    //     assert!(false);
-    //     env::remove_var("TARGET");
-    // }
+    fn clean_env() {
+        env::remove_var("TARGET");
+        env::remove_var("VCPKG_ROOT");
+        env::remove_var("VCPKGRS_DYNAMIC");
+        env::remove_var("RUSTFLAGS");
+        env::remove_var("CARGO_CFG_TARGET_FEATURE");
+        env::remove_var("VCPKGRS_DISABLE");
+        env::remove_var("VCPKGRS_NO_LIBMYSQL");
+    }
+
+    // path to a to vcpkg installation to test against
+    fn vcpkg_test_tree_loc(name: &str) -> PathBuf {
+        let mut path = PathBuf::new();
+        path.push(env::var("CARGO_MANIFEST_DIR").unwrap());
+        path.pop();
+        path.push("test-data");
+        path.push(name);
+        path
+    }
 }

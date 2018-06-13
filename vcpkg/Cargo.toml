@@ -18,3 +18,6 @@ travis-ci = { repository = "mcgoo/vcpkg-rs", branch = "master" }
 appveyor = { repository = "mcgoo/vcpkg-rs", branch = "master", service="github" }
 
 [dependencies]
+
+[dev-dependencies]
+tempdir="0.3.7"
