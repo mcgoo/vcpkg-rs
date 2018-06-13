@@ -21,4 +21,3 @@ appveyor = { repository = "mcgoo/vcpkg-rs", branch = "master", service="github" 
 
 [dev-dependencies]
 tempdir="0.3.7"
-lazy_static = "1"
