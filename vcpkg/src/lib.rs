@@ -453,7 +453,6 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     for path in paths {
         //        println!("Name: {}", path.display());
         try!(load_port_file(&path, &mut port_info));
-        println!("num port descriptors = {}", port_info.len());
     }
 
     for current in &port_info {
