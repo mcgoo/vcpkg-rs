@@ -8,4 +8,4 @@ script:
   - export RUST_BACKTRACE=1
   - export RUST_TEST_THREADS=1
   - cargo build --manifest-path vcpkg/Cargo.toml --verbose
-  - cargo test --manifest-path vcpkg/Cargo.toml --verbose
+  - if [ $TRAVIS_RUST_VERSION != "1.10.0" ] ; then cargo test --manifest-path vcpkg/Cargo.toml --verbose; fi
