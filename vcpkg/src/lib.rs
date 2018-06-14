@@ -1,34 +1,34 @@
 //! A build dependency for Cargo libraries to find libraries in a
-//! [Vcpkg](https://github.com/Microsoft/vcpkg) tree.
+//! [Vcpkg](https://github.com/Microsoft/vcpkg) tree. From a Vcpkg package name
+//! this build helper will emit cargo metadata to link it and it's dependencies
+//! (excluding system libraries, which it cannot derive).
 //!
-//! Note: You must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static` or
+//! **Note:** You must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static` or
 //! `VCPKGRS_DYNAMIC=1` in your environment or the vcpkg-rs helper
 //! will not find any libraries. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
 //! generate dynamically linked binaries, in which case you will have to arrange for
 //! dlls from your Vcpkg installation to be available in your path.
 //!
-//! The simplest possible usage for a library whose Vcpkg port name matches the
-//! name of the lib and DLL that are being looked for looks like this :-
+//! The simplest possible usage looks like this :-
 //!
 //! ```rust,no_run
-//! vcpkg::probe_package("libssh2").unwrap();
+//! vcpkg::find_package("libssh2").unwrap();
 //! ```
 //!
-//! In practice the .lib and .dll often differ in name from the package itself,
-//! in which case the library names must be specified, like this :-
+//! The cargo metadata that is emitted can be changed like this :-
 //!
 //! ```rust,no_run
 //! vcpkg::Config::new()
-//!     .lib_names("zlib","zlib1")
-//!     .probe("zlib").unwrap();
+//!     .emit_includes(true)
+//!     .find_package("zlib").unwrap();
 //! ```
 //!
 //! If the search was successful all appropriate Cargo metadata will be printed
-//! on stdout.
+//! to stdout.
 //!
 //! The decision to choose static variants of libraries is driven by adding
 //! `RUSTFLAGS=-Ctarget-feature=+crt-static` to the environment. This requires
-//! a nightly compiler but is scheduled to be stable in rustc 1.19.
+//! at least Rust 1.19.
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
@@ -51,11 +51,11 @@
 //! C:\src> vcpkg_cli probe -l static mysqlclient
 //! Found library mysqlclient
 //! Include paths:
-//!         C:\src\diesel_build\vcpkg-dll\installed\x64-windows-static\include
+//!         C:\src\[..]\vcpkg\installed\x64-windows-static\include
 //! Library paths:
-//!         C:\src\diesel_build\vcpkg-dll\installed\x64-windows-static\lib
+//!         C:\src\[..]\vcpkg\installed\x64-windows-static\lib
 //! Cargo metadata:
-//!         cargo:rustc-link-search=native=C:\src\diesel_build\vcpkg-dll\installed\x64-windows-static\lib
+//!         cargo:rustc-link-search=native=C:\src\[..]\vcpkg\installed\x64-windows-static\lib
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
@@ -94,6 +94,7 @@ pub struct Config {
     copy_dlls: bool,
 }
 
+/// Details of a package that was found
 #[derive(Debug)]
 pub struct Library {
     /// Paths for the linker to search for static or import libraries
@@ -208,8 +209,15 @@ pub fn probe_package(name: &str) -> Result<Library, Error> {
     Config::new().probe(name)
 }
 
-pub fn find_package(name: &str) -> Result<Library, Error> {
-    Config::new().find_package(name)
+/// Find the package `package` in a Vcpkg tree.
+///
+/// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
+/// named, and any (non-system) libraries that they depend on.
+///
+/// This will select the architecture and linkage based on environment
+/// variables and build flags as described in the module docs.
+pub fn find_package(package: &str) -> Result<Library, Error> {
+    Config::new().find_package(package)
 }
 
 fn find_vcpkg_root() -> Result<PathBuf, Error> {
@@ -900,7 +908,7 @@ impl Config {
 }
 
 impl Library {
-    pub fn new(is_static: bool) -> Library {
+    fn new(is_static: bool) -> Library {
         Library {
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
