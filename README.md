@@ -12,7 +12,7 @@ Find the library named `foo` in a [Vcpkg](https://github.com/Microsoft/vcpkg) in
 extern crate vcpkg;
 
 fn main() {
-    vcpkg::probe_package("foo").unwrap();
+    vcpkg::find_package("foo").unwrap();
 }
 ```
 
