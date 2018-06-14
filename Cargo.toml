@@ -1,8 +1,8 @@
 [workspace]
 members = [ "vcpkg", "vcpkg_cli", "systest" ]
 
-[patch.crates-io]
-vcpkg = { path = 'vcpkg' }
+# [patch.crates-io]
+# vcpkg = { path = 'vcpkg' }
 
-[patch.'https://github.com/mcgoo/vcpkg-rs']
-vcpkg = { path = 'vcpkg' }
+# [patch.'https://github.com/mcgoo/vcpkg-rs']
+# vcpkg = { path = 'vcpkg' }
