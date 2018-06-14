@@ -6,7 +6,7 @@ This is a helper for finding native MSVC ABI libraries in a [Vcpkg](https://gith
 
 ## Example
 
-Find the library named `foo` in a [Vcpkg](https://github.com/Microsoft/vcpkg) installation:
+Find the library named `foo` in a [Vcpkg](https://github.com/Microsoft/vcpkg) installation and emit cargo metadata to link it:
 
 ```rust
 extern crate vcpkg;
