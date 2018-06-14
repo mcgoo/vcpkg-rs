@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [0.2.4] - 2018-06-14
 
 ### Added
+
 - `vcpkg::find_package()` and `vcpkg::Config::find_package()` which follow dependencies and use the correct names for libraries.
 
 ### Deprecated
+
 - `vcpkg::probe_package()` and `vcpkg::Config::probe()` are deprecated because they require the filename of the library which can change. Using `vcpkg::find_package()` and `vcpkg::Config::find_package()` will look up the correct names for the DLLs and libraries in the Vcpkg installation.
 
 ## [0.2.3] - 2018-04-12
