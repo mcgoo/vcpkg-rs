@@ -1,5 +1,6 @@
 [workspace]
-members = [ "vcpkg", "vcpkg_cli", "systest" ]
+members = [ "vcpkg", "vcpkg_cli" ]
+exclude = [ "systest" ]
 
 # [patch.crates-io]
 # vcpkg = { path = 'vcpkg' }

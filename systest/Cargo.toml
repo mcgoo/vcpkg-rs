@@ -14,3 +14,10 @@ curl = "*"
 libz-sys = "*"
 openssl-sys = "*"
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
+
+# always test against the vcpkg crate in this repo
+[patch.crates-io]
+vcpkg = { path = '../vcpkg' }
+
+[patch.'https://github.com/mcgoo/vcpkg-rs']
+vcpkg = { path = '../vcpkg' }

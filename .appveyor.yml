@@ -43,7 +43,6 @@ test_script:
   - cargo --version
   - set RUST_BACKTRACE=1
   - set RUST_TEST_THREADS=1
-  - cargo update
   - cargo build --all
   - cargo test --all
   - cargo run --manifest-path vcpkg_cli\Cargo.toml -- probe curl
