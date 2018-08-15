@@ -61,5 +61,5 @@ make it warn if you use something that looks like a vcpkg triple in place of a r
 1) push
 1) wait for the ci to work
 1) create a tag for the right crate like `git tag vcpkg-rs-0.2.3`
-1) cd to the crate dir and run `run cargo publish`
+1) cd to the crate dir and run `cargo publish`
 1) push
