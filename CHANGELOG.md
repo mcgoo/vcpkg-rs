@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Fix for failure to find packages that have a description that spans multiple lines [#8](https://github.com/mcgoo/vcpkg-rs/issues/8)
+
 ## [0.2.4] - 2018-06-14
 
 ### Added

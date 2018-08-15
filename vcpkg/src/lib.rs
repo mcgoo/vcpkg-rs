@@ -400,22 +400,25 @@ fn load_port_file(
         let line = line.unwrap();
         let parts = line.splitn(2, ": ").clone().collect::<Vec<_>>();
         if parts.len() == 2 {
-            //            println!("{}: {}", parts[0], parts[1]);
+            // a key: value line
             current.insert(parts[0].trim().into(), parts[1].trim().into());
-        } else if parts.len() == 1 {
-            //            println!("pushing it");
+        } else if line.len() == 0 {
+            // end of section
             port_info.push(current.clone());
             current.clear();
         } else {
-            //          println!("wat?");
-            // couldn't parse the file
-            // maybe return Err()?
+            // ignore all extension lines of the form
+            //
+            // Description: a package with a
+            //   very long description
+            //
+            // the description key is not used so this is harmless but
+            // this will eat extension lines for any multiline key which
+            // could become an issue in future
         }
-        //    println!("courant {:?}", current);
     }
 
     if !current.is_empty() {
-        //        println!("(unpushed) current is {:+?}", current);
         port_info.push(current);
     }
 
@@ -1050,6 +1053,25 @@ mod tests {
         });
         clean_env();
     }
+
+    #[test]
+    fn handle_multiline_description() {
+        let _g = LOCK.lock();
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("multiline-description"));
+        env::set_var("TARGET", "i686-pc-windows-msvc");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        println!("Result is {:?}", ::find_package("graphite2"));
+        assert!(match ::find_package("graphite2") {
+            Ok(_) => true,
+            _ => false,
+        });
+        clean_env();
+    }
+
 
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
