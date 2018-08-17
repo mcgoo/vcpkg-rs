@@ -335,19 +335,18 @@ fn load_port_manifest(
     version: &str,
     vcpkg_triple: &str,
 ) -> Result<(Vec<String>, Vec<String>), Error> {
-    let manifest_file = path.join("info")
+    let manifest_file = path
+        .join("info")
         .join(format!("{}_{}_{}.list", port, version, vcpkg_triple));
 
     let mut dlls = Vec::new();
     let mut libs = Vec::new();
 
     let f = try!(
-        File::open(&manifest_file).map_err(|_| {
-            Error::VcpkgInstallation(format!(
-                "Could not open port manifest file {}",
-                manifest_file.display()
-            ))
-        })
+        File::open(&manifest_file).map_err(|_| Error::VcpkgInstallation(format!(
+            "Could not open port manifest file {}",
+            manifest_file.display()
+        )))
     );
 
     let file = BufReader::new(&f);
@@ -386,13 +385,11 @@ fn load_port_file(
     port_info: &mut Vec<BTreeMap<String, String>>,
 ) -> Result<(), Error> {
     let f = try!(
-        File::open(&filename).map_err(|e| {
-            Error::VcpkgInstallation(format!(
-                "Could not open status file at {}: {}",
-                filename.display(),
-                e
-            ))
-        })
+        File::open(&filename).map_err(|e| Error::VcpkgInstallation(format!(
+            "Could not open status file at {}: {}",
+            filename.display(),
+            e
+        )))
     );
     let file = BufReader::new(&f);
     let mut current: BTreeMap<String, String> = BTreeMap::new();
@@ -442,9 +439,10 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     let status_update_dir = target.status_path.join("updates");
 
     let paths = try!(
-        fs::read_dir(status_update_dir).map_err(|e| {
-            Error::VcpkgInstallation(format!("could not read status file updates dir: {}", e))
-        })
+        fs::read_dir(status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
+            "could not read status file updates dir: {}",
+            e
+        )))
     );
 
     // get all of the paths of the update files into a Vec<PathBuf>
@@ -727,13 +725,11 @@ impl Config {
                     let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
                     dest_path.push(Path::new(file.file_name().unwrap()));
                     try!(
-                        fs::copy(file, &dest_path).map_err(|_| {
-                            Error::LibNotFound(format!(
-                                "Can't copy file {} to {}",
-                                file.to_string_lossy(),
-                                dest_path.to_string_lossy()
-                            ))
-                        })
+                        fs::copy(file, &dest_path).map_err(|_| Error::LibNotFound(format!(
+                            "Can't copy file {} to {}",
+                            file.to_string_lossy(),
+                            dest_path.to_string_lossy()
+                        )))
                     );
                     println!(
                         "vcpkg build helper copied {} to {}",
