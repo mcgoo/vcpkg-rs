@@ -16,8 +16,7 @@ fn main() {
                 .help("the rust toolchain triple to find libraries for")
                 .takes_value(true)
                 .default_value("x86_64-pc-windows-msvc"),
-        )
-        .subcommand(
+        ).subcommand(
             SubCommand::with_name("probe")
                 .about("try to find a package")
                 .arg(
@@ -25,8 +24,7 @@ fn main() {
                         .index(1)
                         .required(true)
                         .help("probe for a library and display paths and cargo metadata"),
-                )
-                .arg(
+                ).arg(
                     Arg::with_name("linkage")
                         .short("l")
                         .long("linkage")
