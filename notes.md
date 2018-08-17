@@ -1,4 +1,6 @@
-# scratchpad for notes
+# Scratchpad for notes
+
+## Possible future features
 
 allow specifying a triple to use using an environment variable. this will
 allow setting up a custom "x64-rust-static" triple that dynamically links
@@ -27,26 +29,32 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
                         -OutVariable out
 )
 
-* could run vcpkg and parse it's output to determine what package versions are
-installed.
+* could run vcpkg and parse it's output to determine what package versions are installed.
 
-* could parse vcpkg's installed files list to guess at the names for libraries
-and dlls rather than requiring them to be specified.
+* could parse vcpkg's installed files list to guess at the names for libraries and dlls rather than requiring them to be specified.
 
-* could parse vcpkg's installed packages list to determine what other packages
-we need to link against.
+* could parse vcpkg's installed packages list to determine what other packages we need to link against.
 
-* vcpkg has common include and lib dirs so there is a chance that someone is
-going to end up picking up a vcpkg lib on their link line in preference to
-some other version at some point. I believe cmake handles this by using
-absolute paths for libs wherever possible. if everything below you in the dependency
-tree is looking in vcpkg then everything will agree.
+* vcpkg has common include and lib dirs so there is a chance that someone is going to end up picking up a vcpkg lib on their link line in preference to some other version at some point. I believe cmake handles this by using absolute paths for libs wherever possible. if everything below you in the dependency tree is looking in vcpkg then everything will agree.
 
-* vcpkg has a per-package output dir that looks like it would be helpful,
-but at present it is undocumented and subject to change. (what I read
-mentioned the possibility of compressing the contents.)
+* vcpkg has a per-package output dir that looks like it would be helpful, but at present it is undocumented and subject to change. (what I read mentioned the possibility of compressing the contents.)
 
-make it warn if you use something that looks like a vcpkg triple in place of a rust triple
+* warn if you use something that looks like a vcpkg triple in place of a rust triple
+
+* allow specifying of the library to be installed like pkg-config dies. (hard in general because there is no specific format for version numbers )
+
+* allow stipulating tha a specific feature be installed. at present if a feature is installed any extra libraries it requires will be linked as expected
+
+* get information about installed packages by running the vcpkg executable
+  * if using json to encode the information, this requires writing a json parser or adding a dependency on serde for anything that transitively depends on vcpkg, which is a lot of stuff, probably only a tiny percentage of which actually uses the vcpkg functionality. otherwise, could invent yet another easy-to-parse custom format.
+  * vcpkg is now available on linux and macos also. a possible use is to build the whole bag of windows dependencies on a windows machine at the point that lld can cross link windows/msvc code.
+
+## Creating empty files from list files
+
+```
+touch `grep -h \.lib$ vcpkg/info/*x86* | grep -v debug `
+touch `grep -h \.dll$ vcpkg/info/*x86* | grep -v debug `
+```
 
 ## Making a release
 
