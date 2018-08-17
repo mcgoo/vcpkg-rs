@@ -476,7 +476,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                     // println!("{:?}", current);
                     // println!("--------");
 
-                    let deps = if let Some(deps) = current.get("Depends") {
+                    let mut deps = if let Some(deps) = current.get("Depends") {
                         deps.split(", ").map(|x| x.to_owned()).collect()
                     } else {
                         Vec::new()
@@ -487,28 +487,38 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                         .unwrap_or(&String::new())
                         .ends_with(" installed")
                     {
-                        // hmmm
-                        let version = current.get("Version");
-                        if version.is_none() {
-                            println!("didn't know how to deal with port :-");
-                            println!("{:+?}", current);
-                            //panic!();
-                            continue;
-                        }
-                        let version = version.unwrap();
-                        let lib_info = try!(load_port_manifest(
-                            &target.status_path,
-                            name,
-                            version,
-                            &target.vcpkg_triple
-                        ));
-                        let port = Port {
-                            dlls: lib_info.0,
-                            libs: lib_info.1,
-                            deps: deps,
-                        };
+                        match (current.get("Version"), current.get("Feature")) {
+                            (Some(version), _) => {
+                                let lib_info = try!(load_port_manifest(
+                                    &target.status_path,
+                                    name,
+                                    version,
+                                    &target.vcpkg_triple
+                                ));
+                                let port = Port {
+                                    dlls: lib_info.0,
+                                    libs: lib_info.1,
+                                    deps: deps,
+                                };
 
-                        ports.insert(name.clone(), port);
+                                ports.insert(name.clone(), port);
+                            }
+                            (_, Some(_feature)) => match ports.get_mut(name) {
+                                Some(ref mut port) => {
+                                    port.deps.append(&mut deps);
+                                }
+                                _ => {
+                                    println!("found a feature that had no corresponding port :-");
+                                    println!("current {:+?}", current);
+                                    continue;
+                                }
+                            },
+                            (_, _) => {
+                                println!("didn't know how to deal with status file entry :-");
+                                println!("{:+?}", current);
+                                continue;
+                            }
+                        }
                     } else {
                         // remove it?
                         //ports.remove(name);
@@ -1068,6 +1078,27 @@ mod tests {
         clean_env();
     }
 
+    #[test]
+    fn link_libs_required_by_optional_features() {
+        let _g = LOCK.lock();
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "i686-pc-windows-msvc");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        println!("Result is {:?}", ::find_package("harfbuzz"));
+        assert!(match ::find_package("harfbuzz") {
+            Ok(lib) => lib
+                .cargo_metadata
+                .iter()
+                .find(|&x| x == "cargo:rustc-link-lib=icuuc")
+                .is_some(),
+            _ => false,
+        });
+        clean_env();
+    }
 
     // #[test]
     // fn dynamic_build_package_specific_bailout() {

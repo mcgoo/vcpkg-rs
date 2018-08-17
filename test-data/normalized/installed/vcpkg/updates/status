@@ -1402,3 +1402,70 @@ Multi-Arch: same
 Description: A MySQL client library for C development.
 Status: install ok installed
 
+Package: zlib
+Version: 1.2.11-3
+Architecture: x86-windows
+Multi-Arch: same
+Description: A compression library
+Status: install ok installed
+
+Package: bzip2
+Version: 1.0.6-2
+Architecture: x86-windows
+Multi-Arch: same
+Description: High-quality data compressor.
+Status: install ok installed
+
+Package: libpng
+Version: 1.6.35
+Depends: zlib
+Architecture: x86-windows
+Multi-Arch: same
+Description: libpng is a library implementing an interface for reading and writing PNG (Portable Network Graphics) format files.
+Status: install ok installed
+
+Package: freetype
+Version: 2.8.1-3
+Depends: zlib, bzip2, libpng
+Architecture: x86-windows
+Multi-Arch: same
+Description: A library to render fonts.
+Status: install ok installed
+
+Package: ragel
+Version: 6.10-1
+Architecture: x86-windows
+Multi-Arch: same
+Description: Ragel State Machine Compiler
+Status: install ok installed
+
+Package: harfbuzz
+Version: 1.8.4
+Depends: freetype, ragel
+Architecture: x86-windows
+Multi-Arch: same
+Description: HarfBuzz OpenType text shaping engine
+Status: install ok installed
+
+Package: harfbuzz
+Feature: ucdn
+Architecture: x86-windows
+Multi-Arch: same
+Description: Builtin (UCDN) Unicode callbacks support
+Status: install ok installed
+
+Package: icu
+Version: 61.1-1
+Architecture: x86-windows
+Multi-Arch: same
+Description: Mature and widely used Unicode and localization library.
+Status: install ok installed
+
+Package: harfbuzz
+Feature: icu
+Depends: icu
+Architecture: x86-windows
+Multi-Arch: same
+Description: icu support for harfbuzz
+Status: install ok installed
+
