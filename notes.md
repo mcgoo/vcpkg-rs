@@ -53,7 +53,7 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
 
 ## Creating empty files from list files
 
-```
+```sh
 touch `grep -h \.lib$ vcpkg/info/*x86* | grep -v debug `
 touch `grep -h \.dll$ vcpkg/info/*x86* | grep -v debug `
 ```
