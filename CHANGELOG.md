@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.2.6] - 2018-08-21
+
+### Changed
+
+- Extra libraries that are required by optional features will now be linked. For example, if `harfbuzz` is installed with the `icu` feature (making it depend on the `icu` port), libraries from the `icu` port will be linked.
+
 ## [0.2.5] - 2018-08-15
 
 ### Changed
