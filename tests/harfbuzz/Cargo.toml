@@ -1,0 +1,10 @@
+[package]
+name = "harfbuzz"
+version = "0.1.0"
+authors = ["Jim McGrath <jimmc2@gmail.com>"]
+
+[dependencies]
+
+
+[build-dependencies]
+vcpkg = { path = "../../vcpkg" }

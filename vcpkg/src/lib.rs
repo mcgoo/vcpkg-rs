@@ -84,7 +84,7 @@ pub struct Config {
     /// should cargo:include= metadata be emitted (defaults to false)
     emit_includes: bool,
 
-    /// .libs that must be be found for probing to be considered successful
+    /// .lib/.a files that must be be found for probing to be considered successful
     required_libs: Vec<String>,
 
     /// .dlls that must be be found for probing to be considered successful
@@ -120,15 +120,19 @@ pub struct Library {
 }
 
 enum MSVCTarget {
-    X86,
-    X64,
+    X86Windows,
+    X64Windows,
+    X64Linux,
+    X64MacOS,
 }
 
 impl fmt::Display for MSVCTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MSVCTarget::X86 => write!(f, "x86-windows"),
-            MSVCTarget::X64 => write!(f, "x64-windows"),
+            MSVCTarget::X86Windows => write!(f, "x86-windows"),
+            MSVCTarget::X64Windows => write!(f, "x64-windows"),
+            MSVCTarget::X64Linux => write!(f, "x64-linux"),
+            MSVCTarget::X64MacOS => write!(f, "x64-osx"),
         }
     }
 }
@@ -143,7 +147,7 @@ pub enum Error {
     /// Aborted because a required environment variable was not set.
     RequiredEnvMissing(String),
 
-    /// Only MSVC ABI is supported
+    /// On Windows, only MSVC ABI is supported
     NotMSVC,
 
     /// Can't find a vcpkg tree
@@ -290,15 +294,20 @@ fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
     let vcpkg_root = try!(find_vcpkg_root());
     try!(validate_vcpkg_root(&vcpkg_root));
 
-    let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
-        .unwrap_or(String::new()) // rustc 1.10
-        .contains("crt-static");
+    let (static_lib, static_appendage, lib_suffix, strip_lib_prefix) = match msvc_target {
+        &MSVCTarget::X64Windows | &MSVCTarget::X86Windows => {
+            let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
+                .unwrap_or(String::new()) // rustc 1.10
+                .contains("crt-static");
+            let static_appendage = if static_lib { "-static" } else { "" };
+            (static_lib, static_appendage, "lib", false)
+        }
+        _ => (true, "", "a", true),
+    };
 
     let mut base = vcpkg_root;
     base.push("installed");
     let status_path = base.join("vcpkg");
-
-    let static_appendage = if static_lib { "-static" } else { "" };
 
     let vcpkg_triple = format!("{}{}", msvc_target.to_string(), static_appendage);
     base.push(&vcpkg_triple);
@@ -314,6 +323,8 @@ fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
         include_path: include_path,
         is_static: static_lib,
         status_path: status_path,
+        lib_suffix: lib_suffix.to_owned(),
+        strip_lib_prefix: strip_lib_prefix,
     })
 }
 
@@ -333,11 +344,12 @@ fn load_port_manifest(
     path: &PathBuf,
     port: &str,
     version: &str,
-    vcpkg_triple: &str,
+    vcpkg_target: &VcpkgTarget,
 ) -> Result<(Vec<String>, Vec<String>), Error> {
-    let manifest_file = path
-        .join("info")
-        .join(format!("{}_{}_{}.list", port, version, vcpkg_triple));
+    let manifest_file = path.join("info").join(format!(
+        "{}_{}_{}.list",
+        port, version, vcpkg_target.vcpkg_triple
+    ));
 
     let mut dlls = Vec::new();
     let mut libs = Vec::new();
@@ -351,8 +363,8 @@ fn load_port_manifest(
 
     let file = BufReader::new(&f);
 
-    let dll_prefix = Path::new(vcpkg_triple).join("bin");
-    let lib_prefix = Path::new(vcpkg_triple).join("lib");
+    let dll_prefix = Path::new(&vcpkg_target.vcpkg_triple).join("bin");
+    let lib_prefix = Path::new(&vcpkg_target.vcpkg_triple).join("lib");
 
     for line in file.lines() {
         let line = line.unwrap();
@@ -368,10 +380,12 @@ fn load_port_manifest(
                 dll.to_str().map(|s| dlls.push(s.to_owned()));
             }
         } else if let Ok(lib) = file_path.strip_prefix(&lib_prefix) {
-            if lib.extension() == Some(OsStr::new("lib"))
+            if lib.extension() == Some(OsStr::new(&vcpkg_target.lib_suffix))
                 && lib.components().collect::<Vec<_>>().len() == 1
             {
-                lib.to_str().map(|s| libs.push(s.to_owned()));
+                if let Some(lib) = vcpkg_target.link_name_for_lib(lib) {
+                    libs.push(lib);
+                }
             }
         }
     }
@@ -470,6 +484,10 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
 
     for current in &port_info {
         if let Some(name) = current.get("Package") {
+            // println!("-++++++-");
+            // println!("{:?}", current);
+            // println!("--------");
+            // println!("ours = {}", target.vcpkg_triple);
             if let Some(arch) = current.get("Architecture") {
                 if *arch == target.vcpkg_triple {
                     // println!("-++++++-");
@@ -493,7 +511,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                                     &target.status_path,
                                     name,
                                     version,
-                                    &target.vcpkg_triple
+                                    &target
                                 ));
                                 let port = Port {
                                     dlls: lib_info.0,
@@ -543,6 +561,23 @@ struct VcpkgTarget {
     status_path: PathBuf,
 
     is_static: bool,
+    lib_suffix: String,
+
+    /// strip 'lib' from library names in linker args?
+    strip_lib_prefix: bool,
+}
+
+impl VcpkgTarget {
+    fn link_name_for_lib(&self, filename: &std::path::Path) -> Option<String> {
+        if self.strip_lib_prefix {
+            filename.to_str().map(|s| s.to_owned())
+        // filename
+        //     .to_str()
+        //     .map(|s| s.trim_left_matches("lib").to_owned())
+        } else {
+            filename.to_str().map(|s| s.to_owned())
+        }
+    }
 }
 
 impl Config {
@@ -699,12 +734,18 @@ impl Config {
         for required_lib in &self.required_libs {
             // this could use static-nobundle= for static libraries but it is apparently
             // not necessary to make the distinction for windows-msvc.
+
+            let link_name = match vcpkg_target.strip_lib_prefix {
+                true => required_lib.trim_left_matches("lib"),
+                false => required_lib,
+            };
+
             lib.cargo_metadata
-                .push(format!("cargo:rustc-link-lib={}", required_lib));
+                .push(format!("cargo:rustc-link-lib={}", link_name));
 
             // verify that the library exists
             let mut lib_location = vcpkg_target.lib_path.clone();
-            lib_location.push(required_lib.clone() + ".lib");
+            lib_location.push(required_lib.clone() + "." + &vcpkg_target.lib_suffix);
 
             if !lib_location.exists() {
                 return Err(Error::LibNotFound(lib_location.display().to_string()));
@@ -939,13 +980,17 @@ fn envify(name: &str) -> String {
 
 fn msvc_target() -> Result<MSVCTarget, Error> {
     let target = env::var("TARGET").unwrap_or(String::new());
-    if !target.contains("-pc-windows-msvc") {
+    if target == "x86_64-apple-darwin" {
+        Ok(MSVCTarget::X64MacOS)
+    } else if target == "x86_64-unknown-linux-gnu" {
+        Ok(MSVCTarget::X64Linux)
+    } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
-        Ok(MSVCTarget::X64)
+        Ok(MSVCTarget::X64Windows)
     } else {
         // everything else is x86
-        Ok(MSVCTarget::X86)
+        Ok(MSVCTarget::X86Windows)
     }
 }
 
@@ -963,10 +1008,10 @@ mod tests {
     }
 
     #[test]
-    fn do_nothing_for_non_msvc_target() {
+    fn do_nothing_for_unsupported_target() {
         let _g = LOCK.lock();
         env::set_var("VCPKG_ROOT", "/");
-        env::set_var("TARGET", "x86_64-unknown-linux-gnu");
+        env::set_var("TARGET", "x86_64-pc-windows-gnu");
         assert!(match ::probe_package("foo") {
             Err(Error::NotMSVC) => true,
             _ => false,
@@ -1098,6 +1143,36 @@ mod tests {
             _ => false,
         });
         clean_env();
+    }
+
+    #[test]
+    fn link_lib_name_is_correct() {
+        let _g = LOCK.lock();
+
+        for target in &[
+            "x86_64-apple-darwin",
+            "i686-pc-windows-msvc",
+            //      "x86_64-pc-windows-msvc",
+            //    "x86_64-unknown-linux-gnu",
+        ] {
+            clean_env();
+            env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+            env::set_var("TARGET", target);
+            env::set_var("VCPKGRS_DYNAMIC", "1");
+            let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+            env::set_var("OUT_DIR", tmp_dir.path());
+
+            println!("Result is {:?}", ::find_package("harfbuzz"));
+            assert!(match ::find_package("harfbuzz") {
+                Ok(lib) => lib
+                    .cargo_metadata
+                    .iter()
+                    .find(|&x| x == "cargo:rustc-link-lib=harfbuzz")
+                    .is_some(),
+                _ => false,
+            });
+            clean_env();
+        }
     }
 
     // #[test]
