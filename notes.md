@@ -49,9 +49,11 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
   * if using json to encode the information, this requires writing a json parser or adding a dependency on serde for anything that transitively depends on vcpkg, which is a lot of stuff, probably only a tiny percentage of which actually uses the vcpkg functionality. otherwise, could invent yet another easy-to-parse custom format.
   * vcpkg is now available on linux and macos also. a possible use is to build the whole bag of windows dependencies on a windows machine at the point that lld can cross link windows/msvc code.
 
+* add a changelog for vcpkg_cli
+
 ## Creating empty files from list files
 
-```
+```sh
 touch `grep -h \.lib$ vcpkg/info/*x86* | grep -v debug `
 touch `grep -h \.dll$ vcpkg/info/*x86* | grep -v debug `
 ```
