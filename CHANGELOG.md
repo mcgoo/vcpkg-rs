@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Linux and MacOS are now supported
+
 ## [0.2.6] - 2018-08-21
 
 ### Changed
