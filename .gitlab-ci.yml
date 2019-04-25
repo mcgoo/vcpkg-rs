@@ -43,7 +43,7 @@ win64_static:
   variables:
     TARGET: x86_64-pc-windows-msvc
     RUSTFLAGS: -Ctarget-feature=+crt-static
-    RUST: nightly
+    RUST: stable
     VCPKG_DEFAULT_TRIPLET: x64-windows-static
 
 win32_dynamic:
@@ -59,7 +59,7 @@ win32_static:
   variables:
     TARGET: i686-pc-windows-msvc
     RUSTFLAGS: -Ctarget-feature=+crt-static
-    RUST: nightly
+    RUST: stable
     VCPKG_DEFAULT_TRIPLET: x86-windows-static
     
 variables:
