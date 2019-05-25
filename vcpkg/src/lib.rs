@@ -59,11 +59,15 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
+// The CI will test vcpkg-rs on 1.10 because at this point rust-openssl's
+// openssl-sys is backward compatible that far. (Actually, the oldest release
+// crate openssl version 0.10 seems to build against is now Rust 1.24.1?)
+#![allow(deprecated)]
+
 #[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 
-#[allow(deprecated)]
 #[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
