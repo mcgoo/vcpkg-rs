@@ -441,7 +441,7 @@ fn load_port_file(
 }
 
 fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
-    let mut ports = BTreeMap::new();
+    let mut ports: BTreeMap<String, Port> = BTreeMap::new();
 
     let mut port_info: Vec<BTreeMap<String, String>> = Vec::new();
 
@@ -480,69 +480,70 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     // https://doc.rust-lang.org/nightly/std/fs/fn.read_dir.html#platform-specific-behavior
     paths.sort();
     for path in paths {
-        //        println!("Name: {}", path.display());
+        //       println!("Name: {}", path.display());
         try!(load_port_file(&path, &mut port_info));
     }
+    //println!("{:#?}", port_info);
 
+    let mut seen_names = BTreeMap::new();
     for current in &port_info {
-        if let Some(name) = current.get("Package") {
-            // println!("-++++++-");
-            // println!("{:?}", current);
-            // println!("--------");
-            // println!("ours = {}", target.vcpkg_triple);
-            if let Some(arch) = current.get("Architecture") {
-                if *arch == target.vcpkg_triple {
-                    // println!("-++++++-");
-                    // println!("{:?}", current);
-                    // println!("--------");
+        // store them by name and arch, clobbering older details
+        match (
+            current.get("Package"),
+            current.get("Architecture"),
+            current.get("Feature"),
+        ) {
+            (Some(pkg), Some(arch), feature) => {
+                seen_names.insert((pkg, arch, feature), current);
+            }
+            _ => {}
+        }
+    }
 
-                    let mut deps = if let Some(deps) = current.get("Depends") {
-                        deps.split(", ").map(|x| x.to_owned()).collect()
-                    } else {
-                        Vec::new()
-                    };
+    for (&(name, arch, feature), current) in &seen_names {
+        if **arch == target.vcpkg_triple {
+            let mut deps = if let Some(deps) = current.get("Depends") {
+                deps.split(", ").map(|x| x.to_owned()).collect()
+            } else {
+                Vec::new()
+            };
 
-                    if current
-                        .get("Status")
-                        .unwrap_or(&String::new())
-                        .ends_with(" installed")
-                    {
-                        match (current.get("Version"), current.get("Feature")) {
-                            (Some(version), _) => {
-                                let lib_info = try!(load_port_manifest(
-                                    &target.status_path,
-                                    name,
-                                    version,
-                                    &target
-                                ));
-                                let port = Port {
-                                    dlls: lib_info.0,
-                                    libs: lib_info.1,
-                                    deps: deps,
-                                };
+            if current
+                .get("Status")
+                .unwrap_or(&String::new())
+                .ends_with(" installed")
+            {
+                match (current.get("Version"), feature) {
+                    (Some(version), _) => {
+                        // this failing here and bailing out causes everything to fail
+                        let lib_info = try!(load_port_manifest(
+                            &target.status_path,
+                            &name,
+                            version,
+                            &target
+                        ));
+                        let port = Port {
+                            dlls: lib_info.0,
+                            libs: lib_info.1,
+                            deps: deps,
+                        };
 
-                                ports.insert(name.clone(), port);
-                            }
-                            (_, Some(_feature)) => match ports.get_mut(name) {
-                                Some(ref mut port) => {
-                                    port.deps.append(&mut deps);
-                                }
-                                _ => {
-                                    println!("found a feature that had no corresponding port :-");
-                                    println!("current {:+?}", current);
-                                    continue;
-                                }
-                            },
-                            (_, _) => {
-                                println!("didn't know how to deal with status file entry :-");
-                                println!("{:+?}", current);
-                                continue;
-                            }
+                        ports.insert(name.to_string(), port);
+                    }
+                    (_, Some(_feature)) => match ports.get_mut(name) {
+                        Some(ref mut port) => {
+                            port.deps.append(&mut deps);
                         }
-                    } else {
-                        // remove it?
-                        //ports.remove(name);
-                        //println!("would delete {} for arch {}", name, arch);
+                        _ => {
+                            println!("found a feature that had no corresponding port :-");
+                            println!("current {:+?}", current);
+                            continue;
+                        }
+                    },
+                    (_, _) => {
+                        println!("didn't know how to deal with status file entry :-");
+                        println!("{:+?}", current);
+                        continue;
                     }
                 }
             }
