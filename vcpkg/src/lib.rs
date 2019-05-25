@@ -460,17 +460,15 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     );
 
     // get all of the paths of the update files into a Vec<PathBuf>
-    let mut paths = try!(
-        paths
-            .map(|rde| rde.map(|de| de.path())) // Result<DirEntry, io::Error> -> Result<PathBuf, io::Error>
-            .collect::<Result<Vec<_>, _>>() // collect into Result<Vec<PathBuf>, io::Error>
-            .map_err(|e| {
-                Error::VcpkgInstallation(format!(
-                    "could not read status file update filenames: {}",
-                    e
-                ))
-            })
-    );
+    let mut paths = try!(paths
+        .map(|rde| rde.map(|de| de.path())) // Result<DirEntry, io::Error> -> Result<PathBuf, io::Error>
+        .collect::<Result<Vec<_>, _>>() // collect into Result<Vec<PathBuf>, io::Error>
+        .map_err(|e| {
+            Error::VcpkgInstallation(format!(
+                "could not read status file update filenames: {}",
+                e
+            ))
+        }));
 
     // Sort the paths and read them. This could be done directly from the iterator if
     // read_dir() guarantees that the files will be read in alpha order but that appears
