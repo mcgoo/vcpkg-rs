@@ -12,11 +12,12 @@ fn main() {
             Arg::with_name("target")
                 .short("t")
                 .long("target")
-                .value_name("TARGET TRIPLE")
+                .value_name("RUST TARGET TRIPLE")
                 .help("the rust toolchain triple to find libraries for")
                 .takes_value(true)
                 .default_value("x86_64-pc-windows-msvc"),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("probe")
                 .about("try to find a package")
                 .arg(
@@ -24,7 +25,8 @@ fn main() {
                         .index(1)
                         .required(true)
                         .help("probe for a library and display paths and cargo metadata"),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("linkage")
                         .short("l")
                         .long("linkage")
@@ -47,9 +49,11 @@ fn main() {
         if let Some(linkage) = matches.value_of("linkage") {
             match &linkage {
                 &"dll" => {
-                    // do nothing
+                    remove_vars();
+                    env::set_var("VCPKGRS_DYNAMIC", "1");
                 }
                 &"static" => {
+                    remove_vars();
                     env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
                 }
                 _ => unreachable!(),
@@ -105,4 +109,9 @@ fn main() {
             }
         }
     }
+}
+
+fn remove_vars() {
+    env::remove_var("VCPKGRS_DYNAMIC");
+    env::remove_var("CARGO_CFG_TARGET_FEATURE");
 }
