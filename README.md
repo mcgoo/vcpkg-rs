@@ -1,4 +1,4 @@
-# vcpkg-rs [![Build Status](https://travis-ci.org/mcgoo/vcpkg-rs.svg?branch=master)](https://travis-ci.org/mcgoo/vcpkg-rs) [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/xlqckr07wv0puh3u?svg=true)](https://ci.appveyor.com/project/mcgoo/vcpkg-rs/branch/master)
+# vcpkg-rs [![Build Status](https://travis-ci.org/mcgoo/vcpkg-rs.svg?branch=master)](https://travis-ci.org/mcgoo/vcpkg-rs) [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/xlqckr07wv0puh3u?svg=true)](https://ci.appveyor.com/project/mcgoo/vcpkg-rs/branch/master) [![Azure Build Status](https://dev.azure.com/jimmc2/vcpkg-rs/_apis/build/status/mcgoo.vcpkg-rs?branchName=master)](https://dev.azure.com/jimmc2/vcpkg-rs/_build/latest?definitionId=2&branchName=master)
 
 [Documentation](https://docs.rs/vcpkg) [Changelog](CHANGELOG.md)
 
