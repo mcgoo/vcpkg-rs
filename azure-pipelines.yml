@@ -42,7 +42,9 @@ jobs:
       parameters:
         platform: Linux
     - template: _build/common-tests.yml
-    - script: tests/run.sh
+    - script: |
+        tests/run.sh
+      displayName: Test linking to harfbuzz
 
 - job: macOS
   displayName: macOS
@@ -64,4 +66,6 @@ jobs:
       parameters:
         platform: macOS
     - template: _build/common-tests.yml
-    - script: tests/run.sh
+    - script: |
+        tests/run.sh
+      displayName: Test linking to harfbuzz
