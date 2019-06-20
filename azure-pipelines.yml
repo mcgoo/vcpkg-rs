@@ -1,0 +1,67 @@
+jobs:
+- job: Windows
+  displayName: Windows
+  pool:
+    vmImage: vs2017-win2016
+  variables:
+    VCPKGRS_DYNAMIC: 1
+    RUSTUP_TOOLCHAIN: stable
+  steps:
+    - template: _build/install-rust.yml
+      parameters:
+        platform: Windows
+        rust_version: $(RUSTUP_TOOLCHAIN)      
+    - template: _build/install-vcpkg.yml
+      parameters:
+        platform: Windows
+    - script: |
+        echo VCPKG_ROOT=%VCPKG_ROOT%
+        %VCPKG_ROOT%\vcpkg install openssl:x64-windows
+      displayName: Install openssl with vcpkg
+    - template: _build/common-tests.yml
+    - script: |
+        echo VCPKG_ROOT=%VCPKG_ROOT%
+        %VCPKG_ROOT%\vcpkg install openssl:x64-windows
+
+- job: Linux
+  displayName: Linux
+  pool:
+    vmImage: ubuntu-16.04
+  variables:
+    VCPKGRS_DYNAMIC: 1
+    RUSTUP_TOOLCHAIN: stable
+  steps:
+    - script: |
+        ls -l
+      displayName: List the directory
+    - template: _build/install-rust.yml
+      parameters:
+        platform: Linux
+        rust_version: $(RUSTUP_TOOLCHAIN)      
+    - template: _build/install-vcpkg.yml
+      parameters:
+        platform: Linux
+    - template: _build/common-tests.yml
+    - script: tests/run.sh
+
+- job: macOS
+  displayName: macOS
+  pool:
+    vmImage: macOS-10.13
+  variables:
+    VCPKGRS_DYNAMIC: 1
+    RUSTUP_TOOLCHAIN: stable
+  steps:
+    - bash: |
+        brew update && 
+        brew install gcc@7
+      displayName: Install gcc 7
+    - template: _build/install-rust.yml
+      parameters:
+        platform: macOS
+        rust_version: $(RUSTUP_TOOLCHAIN)      
+    - template: _build/install-vcpkg.yml
+      parameters:
+        platform: macOS
+    - template: _build/common-tests.yml
+    - script: tests/run.sh
