@@ -39,11 +39,13 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
 
 * vcpkg has a per-package output dir that looks like it would be helpful, but at present it is undocumented and subject to change. (what I read mentioned the possibility of compressing the contents.)
 
-* warn if you use something that looks like a vcpkg triple in place of a rust triple
+* warn if you use something that looks like a vcpkg triplet in place of a rust triple
 
-* allow specifying of the library to be installed like pkg-config dies. (hard in general because there is no specific format for version numbers )
+* allow specifying of the library to be installed like pkg-config does. (hard in general because there is no specific format for version numbers )
 
-* allow stipulating tha a specific feature be installed. at present if a feature is installed any extra libraries it requires will be linked as expected
+* allow stipulating that a specific feature be installed. at present if a feature is installed any extra libraries it requires will be linked as expected. how should this be? The vcpkg way is to specify it as harfbuzz[graphite2,icu] for example.
+
+* report enabled/available features in the Library returned from find_package
 
 * get information about installed packages by running the vcpkg executable
   * if using json to encode the information, this requires writing a json parser or adding a dependency on serde for anything that transitively depends on vcpkg, which is a lot of stuff, probably only a tiny percentage of which actually uses the vcpkg functionality. otherwise, could invent yet another easy-to-parse custom format.
@@ -58,6 +60,7 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
 * hide or deprecate or note that the lib_name api is not as good as find_package
 
 * make sure the find_package api is first in the docs and mention that it's the best option
+
 
 ## Creating empty files from list files
 
