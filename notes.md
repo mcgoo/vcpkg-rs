@@ -51,6 +51,14 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
 
 * add a changelog for vcpkg_cli
 
+* make the breaking change of dropping Rust 1.10 compatibility when updating to 0.3
+
+* add a test for 1.10 on linux on azure
+
+* hide or deprecate or note that the lib_name api is not as good as find_package
+
+* make sure the find_package api is first in the docs and mention that it's the best option
+
 ## Creating empty files from list files
 
 ```sh
