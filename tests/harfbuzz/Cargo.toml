@@ -8,3 +8,4 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
 [build-dependencies]
 vcpkg = { path = "../../vcpkg" }
+cc = "1.0"
