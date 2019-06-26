@@ -116,11 +116,14 @@ pub struct Library {
     /// libraries found are static
     pub is_static: bool,
 
-    // DLLs found
+    /// DLLs found
     pub found_dlls: Vec<PathBuf>,
 
-    // static libs or import libs found
+    /// static libs or import libs found
     pub found_libs: Vec<PathBuf>,
+
+    /// ports that are providing the libraries to link to, in port link order
+    pub ports: Vec<String>,
 }
 
 enum MSVCTarget {
@@ -844,6 +847,8 @@ impl Config {
 
         let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
 
+        let mut required_port_order = Vec::new();
+
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
@@ -855,7 +860,6 @@ impl Config {
 
             // the complete set of ports required
             let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
-            let mut required_port_order = Vec::new();
             // working of ports that we need to include
             //        let mut ports_to_scan: BTreeSet<String> = BTreeSet::new();
             //        ports_to_scan.insert(port_name.to_owned());
@@ -873,6 +877,7 @@ impl Config {
                         ports_to_scan.push(dep.clone());
                     }
                     required_ports.insert(port_name.clone(), (*port).clone());
+                    remove_item(&mut required_port_order, &port_name);
                     required_port_order.push(port_name);
                 } else {
                     // what?
@@ -951,6 +956,8 @@ impl Config {
             lib.dll_paths.push(vcpkg_target.bin_path.clone());
         }
 
+        lib.ports = required_port_order;
+
         try!(self.emit_libs(&mut lib, &vcpkg_target));
 
         if self.copy_dlls {
@@ -966,6 +973,13 @@ impl Config {
     }
 }
 
+fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
+    match cont.iter().position(|x| *x == *item) {
+        Some(pos) => Some(cont.remove(pos)),
+        None => None,
+    }
+}
+
 impl Library {
     fn new(is_static: bool) -> Library {
         Library {
@@ -976,6 +990,7 @@ impl Library {
             is_static: is_static,
             found_dlls: Vec::new(),
             found_libs: Vec::new(),
+            ports: Vec::new(),
         }
     }
 }
@@ -1184,6 +1199,45 @@ mod tests {
         }
     }
 
+    #[test]
+    fn link_dependencies_after_port() {
+        let _g = LOCK.lock();
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "i686-pc-windows-msvc");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let lib = ::find_package("harfbuzz").unwrap();
+
+        check_before(&lib, "freetype", "zlib");
+        check_before(&lib, "freetype", "bzip2");
+        check_before(&lib, "freetype", "libpng");
+        check_before(&lib, "harfbuzz", "freetype");
+        check_before(&lib, "harfbuzz", "ragel");
+        check_before(&lib, "libpng", "zlib");
+
+        clean_env();
+
+        fn check_before(lib: &Library, earlier: &str, later: &str) {
+            match (
+                lib.ports.iter().position(|x| *x == *earlier),
+                lib.ports.iter().position(|x| *x == *later),
+            ) {
+                (Some(earlier_pos), Some(later_pos)) if earlier_pos < later_pos => {
+                    // ok
+                }
+                _ => {
+                    println!(
+                        "earlier: {}, later: {}\nLibrary found: {:#?}",
+                        earlier, later, lib
+                    );
+                    panic!();
+                }
+            }
+        }
+    }
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
     //     clean_env();
