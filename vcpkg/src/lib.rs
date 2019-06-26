@@ -237,7 +237,7 @@ fn find_vcpkg_root() -> Result<PathBuf, Error> {
     // see if there is a per-user vcpkg tree that has been integrated into msbuild
     // using `vcpkg integrate install`
     let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| Error::VcpkgNotFound(
-        "Failed to read LOCALAPPDATA environment variable".to_string()
+        "Failed to read either VCPKG_ROOT or LOCALAPPDATA environment variables".to_string()
     ))); // not present or can't utf8
     let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
         .join("vcpkg")
