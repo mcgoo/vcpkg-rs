@@ -855,7 +855,7 @@ impl Config {
 
             // the complete set of ports required
             let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
-
+            let mut required_port_order = Vec::new();
             // working of ports that we need to include
             //        let mut ports_to_scan: BTreeSet<String> = BTreeSet::new();
             //        ports_to_scan.insert(port_name.to_owned());
@@ -872,7 +872,8 @@ impl Config {
                     for dep in &port.deps {
                         ports_to_scan.push(dep.clone());
                     }
-                    required_ports.insert(port_name, (*port).clone());
+                    required_ports.insert(port_name.clone(), (*port).clone());
+                    required_port_order.push(port_name);
                 } else {
                     // what?
                 }
@@ -881,15 +882,20 @@ impl Config {
             // for port in ports {
             //     println!("port {:?}", port);
             // }
+            // println!("== Looking for port {}", port_name);
+            // for port in &required_port_order {
+            //     println!("ordered required port {:?}", port);
+            // }
             // println!("=============================");
-            //for port in &required_ports {
-            //   println!("required port {:?}", port);
-            //}
+            // for port in &required_ports {
+            //     println!("required port {:?}", port);
+            // }
 
             // if no overrides have been selected, then the Vcpkg port name
             // is the the .lib name and the .dll name
             if self.required_libs.is_empty() {
-                for (_, port) in &required_ports {
+                for port_name in &required_port_order {
+                    let port = required_ports.get(port_name).unwrap();
                     self.required_libs.extend(port.libs.iter().map(|s| {
                         Path::new(&s)
                             .file_stem()
