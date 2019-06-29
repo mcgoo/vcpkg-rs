@@ -1,33 +1,43 @@
 # Scratchpad for notes
 
+## Making a release
+
+1) run vcpkg_cli and test it
+1) run systest\test.cmd
+1) check that everything is committed and work dir is clean
+1) push to master on github
+1) check that gitlab ci, appveyor and travis pass
+1) update changelog, commit and push
+1) update version number in Cargo.toml for the crate to be released
+1) commit
+1) push
+1) wait for the ci to work
+1) create a tag for the right crate like `git tag vcpkg-rs-0.2.3`
+1) cd to the crate dir and run `cargo publish`
+1) push
+
 ## Possible future features
 
-allow specifying a triple to use using an environment variable. this will
-allow setting up a custom "x64-rust-static" triple that dynamically links
-to msvcrt, allowing static builds with the default rust.
+* hide or deprecate or note that the lib_name api is not as good as find_package
 
-add information about target triples and target triple selection being
-driven by RUSTFLAGS=-Ctarget-feature=+crt-static
+* make sure the find_package api is first in the docs and mention that it's the best option
 
-add a note that even rust debug builds are linked against the release version
+* allow specifying a triple to use using an environment variable. this will allow setting up a custom "x64-rust-static" triple that dynamically links to msvcrt, allowing static builds with the default rust.
+
+* add information about target triples and target triple selection being driven by RUSTFLAGS=-Ctarget-feature=+crt-static
+
+* add a note that even rust debug builds are linked against the release version
 of built libraries
 
-there is a lib\no_auto_link folder that some packages generate that needs
+* there is a lib\no_auto_link folder that some packages generate that needs
 to be added to the link line. this will require finding an example of
 a library that uses that feature. (boost?)
 
-vcpkg_cli: make probe failure return a nonzero exit code so the build fails
+* vcpkg_cli: make probe failure return a nonzero exit code so the build fails
 
-remove crate doc info about the libname -> package mapping. (why?)
+* remove crate doc info about the libname -> package mapping. (why?)
 
-look into the possibility of using dotenv to allow setting VCPKG_ROOT
-
-possibly chase the dependencies
-COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_DIR}/msbuild/applocal.ps1
-                        -targetBinary $<TARGET_FILE:${name}>
-                        -installedDir "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}$<$<CONFIG:Debug>:/debug>/bin"
-                        -OutVariable out
-)
+* look into the possibility of using dotenv to allow setting VCPKG_ROOT
 
 * could run vcpkg and parse it's output to determine what package versions are installed.
 
@@ -55,32 +65,9 @@ COMMAND powershell -noprofile -executionpolicy Bypass -file ${_VCPKG_TOOLCHAIN_D
 
 * make the breaking change of dropping Rust 1.10 compatibility when updating to 0.3
 
-* add a test for 1.10 on linux on azure
-
-* hide or deprecate or note that the lib_name api is not as good as find_package
-
-* make sure the find_package api is first in the docs and mention that it's the best option
-
-
 ## Creating empty files from list files
 
 ```sh
 touch `grep -h \.lib$ vcpkg/info/*x86* | grep -v debug `
 touch `grep -h \.dll$ vcpkg/info/*x86* | grep -v debug `
 ```
-
-## Making a release
-
-1) run vcpkg_cli and test it
-1) run systest\test.cmd
-1) check that everything is committed and work dir is clean
-1) push to master on gitlab and github
-1) check that gitlab ci, appveyor and travis pass
-1) update changelog, commit and push
-1) update version number in Cargo.toml for the crate to be released
-1) commit
-1) push
-1) wait for the ci to work
-1) create a tag for the right crate like `git tag vcpkg-rs-0.2.3`
-1) cd to the crate dir and run `cargo publish`
-1) push

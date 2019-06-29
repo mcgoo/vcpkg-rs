@@ -46,6 +46,25 @@ jobs:
         tests/run.sh
       displayName: Test linking to harfbuzz
 
+- job: Linux_Rust_1_10
+  displayName: Linux, Rust 1.10
+  pool:
+    vmImage: ubuntu-16.04
+  variables:
+    VCPKGRS_DYNAMIC: 1
+    RUSTUP_TOOLCHAIN: 1.10.0
+  steps:
+    - template: _build/install-rust.yml
+      parameters:
+        platform: Linux
+        rust_version: $(RUSTUP_TOOLCHAIN)      
+    # - template: _build/install-vcpkg.yml
+    #   parameters:
+    #     platform: Linux
+    - script: |
+        cargo build --manifest-path vcpkg/Cargo.toml 
+      displayName: Smoke test - only build vcpkg
+
 - job: macOS
   displayName: macOS
   pool:
