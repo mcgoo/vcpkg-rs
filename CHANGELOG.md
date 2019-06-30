@@ -3,13 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
-## [Unreleased]
+## [0.2.7] - 2019-06-29
 
 ### Added
 
-- Linux and MacOS are now supported
+- Added support for Linux and MacOS.
+
+### Fixed
+
+- If different versions of a port were installed for different triplets in vcpkg, vcpkg-rs would not be able to find the port in
+some triplets.
 
 ## [0.2.6] - 2018-08-21
 
