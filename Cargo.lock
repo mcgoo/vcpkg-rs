@@ -131,7 +131,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "vcpkg"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "lazy_static 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -139,10 +139,10 @@ dependencies = [
 
 [[package]]
 name = "vcpkg_cli"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "vcpkg 0.2.7",
+ "vcpkg 0.2.8",
 ]
 
 [[package]]

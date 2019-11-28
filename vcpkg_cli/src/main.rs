@@ -103,6 +103,12 @@ fn main() {
                         println!("  {}", line.display());
                     }
                 }
+                if !lib.found_names.is_empty() {
+                    println!("Libraries linking names:");
+                    for line in &lib.found_names {
+                        println!("  {}", line);
+                    }
+                }
             }
             Err(err) => {
                 println!("Failed:  {}", err);
