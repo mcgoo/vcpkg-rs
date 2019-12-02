@@ -96,6 +96,9 @@ pub struct Config {
 
     /// should DLLs be copies to OUT_DIR?
     copy_dlls: bool,
+
+    /// override VCPKG_ROOT environment variable
+    vcpkg_root: Option<PathBuf>,
 }
 
 /// Details of a package that was found
@@ -121,6 +124,9 @@ pub struct Library {
 
     /// static libs or import libs found
     pub found_libs: Vec<PathBuf>,
+
+    /// link name of libraries found, this is useful to emit linker commands
+    pub found_names: Vec<String>,
 
     /// ports that are providing the libraries to link to, in port link order
     pub ports: Vec<String>,
@@ -231,8 +237,13 @@ pub fn find_package(package: &str) -> Result<Library, Error> {
     Config::new().find_package(package)
 }
 
-fn find_vcpkg_root() -> Result<PathBuf, Error> {
-    // prefer the setting from the environment is there is one
+fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
+    // prefer the setting from the use if there is one
+    if let &Some(ref path) = &cfg.vcpkg_root {
+        return Ok(path.clone());
+    }
+
+    // otherwise, use the setting from the environment
     if let Some(path) = env::var_os("VCPKG_ROOT") {
         return Ok(PathBuf::from(path));
     }
@@ -297,8 +308,8 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
     }
 }
 
-fn find_vcpkg_target(msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
-    let vcpkg_root = try!(find_vcpkg_root());
+fn find_vcpkg_target(cfg: &Config, msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
+    let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
 
     let (static_lib, static_appendage, lib_suffix, strip_lib_prefix) = match msvc_target {
@@ -643,6 +654,13 @@ impl Config {
         self
     }
 
+    /// Define which path to use as vcpkg root overriding the VCPKG_ROOT environment variable
+    /// Default to `None`, which means use VCPKG_ROOT or try to find out automatically
+    pub fn vcpkg_root(&mut self, vcpkg_root: PathBuf) -> &mut Config {
+        self.vcpkg_root = Some(vcpkg_root);
+        self
+    }
+
     /// Find the library `port_name` in a Vcpkg tree.
     ///
     /// This will use all configuration previously set to select the
@@ -683,7 +701,7 @@ impl Config {
             self.required_dlls.push(port_name.to_owned());
         }
 
-        let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
+        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
 
         // require explicit opt-in before using dynamically linked
         // variants, otherwise cargo install of various things will
@@ -748,6 +766,8 @@ impl Config {
 
             lib.cargo_metadata
                 .push(format!("cargo:rustc-link-lib={}", link_name));
+
+            lib.found_names.push(String::from(link_name));
 
             // verify that the library exists
             let mut lib_location = vcpkg_target.lib_path.clone();
@@ -845,8 +865,7 @@ impl Config {
             return Err(Error::DisabledByEnv(abort_var_name));
         }
 
-        let vcpkg_target = try!(find_vcpkg_target(&msvc_target));
-
+        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
         let mut required_port_order = Vec::new();
 
         // if no overrides have been selected, then the Vcpkg port name
@@ -990,6 +1009,7 @@ impl Library {
             is_static: is_static,
             found_dlls: Vec::new(),
             found_libs: Vec::new(),
+            found_names: Vec::new(),
             ports: Vec::new(),
         }
     }
