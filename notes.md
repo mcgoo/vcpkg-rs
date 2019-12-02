@@ -1,4 +1,4 @@
-# Scratchpad for notes
+# Notes
 
 ## Making a release
 
@@ -14,7 +14,7 @@
 1) wait for the ci to work
 1) create a tag for the right crate like `git tag vcpkg-rs-0.2.3`
 1) cd to the crate dir and run `cargo publish`
-1) push
+1) git push origin --tags
 
 ## Possible future features
 
@@ -64,6 +64,8 @@ a library that uses that feature. (boost?)
 * add a changelog for vcpkg_cli
 
 * make the breaking change of dropping Rust 1.10 compatibility when updating to 0.3
+
+* vcpkg_cli should say if there are other versions of the ports available that do not match what is being looked for
 
 ## Creating empty files from list files
 
