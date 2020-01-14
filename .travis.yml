@@ -32,7 +32,6 @@ before_install:
   - if [ $TRAVIS_OS_NAME == "linux" ] ; then sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y; fi
   - if [ $TRAVIS_OS_NAME == "linux" ] ; then sudo apt-get -qq update -y; fi
   - if [ $TRAVIS_OS_NAME == "linux" ] ; then sudo apt-get -qq install g++-7 -y; fi
-  - if [ $TRAVIS_OS_NAME == "osx" ] ; then brew update; brew install gcc@7 || brew link --overwrite gcc@7; fi
 
 script:
   - export RUST_BACKTRACE=1
