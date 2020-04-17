@@ -1,0 +1,14 @@
+name: Rust 1.10 compile test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run build
+        run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
+      - name: Run unit tests
+        run: cargo test --manifest-path vcpkg/Cargo.toml --verbose
