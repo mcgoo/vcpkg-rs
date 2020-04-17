@@ -16,5 +16,6 @@ jobs:
         run: rustup default 1.10.0
       - name: Run build
         run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
-      - name: Run unit tests
-        run: cargo test --manifest-path vcpkg/Cargo.toml --verbose
+      # tests can't be run because they use ONCE which needs a newer compiler
+      # - name: Run unit tests
+      #   run: cargo test --manifest-path vcpkg/Cargo.toml --verbose
