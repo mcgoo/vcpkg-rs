@@ -1,0 +1,18 @@
+name: Linux
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run build
+        run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
+      - name: Install vcpkg
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git vcp
+          vcp/bootstrap-vcpkg.sh
+      - name: Run tests
+        run: tests/run.sh
