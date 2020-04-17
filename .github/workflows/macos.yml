@@ -10,9 +10,11 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run build
         run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
+      - name: Run unit tests
+        run: cargo test --manifest-path vcpkg/Cargo.toml --verbose
       - name: Install vcpkg
         run: |
           git clone https://github.com/Microsoft/vcpkg.git vcp
           vcp/bootstrap-vcpkg.sh
-      - name: Run tests
+      - name: Run integration tests
         run: tests/run.sh
