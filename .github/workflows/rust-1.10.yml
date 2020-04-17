@@ -12,6 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Set default Rust
+        run: rustup default 1.10.0
       - name: Run build
         run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
       - name: Run unit tests
