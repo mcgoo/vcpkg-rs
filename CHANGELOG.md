@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
+## [0.2.8] - 2019-12-01
+
+### Added
+
+- @fungos added the ability to specify the location of a vcpkg tree in code.
+
 ## [0.2.7] - 2019-06-29
 
 ### Added
@@ -14,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - If different versions of a port were installed for different triplets in vcpkg, vcpkg-rs would not be able to find the port in
-some triplets.
+  some triplets.
 
 ## [0.2.6] - 2018-08-21
 
