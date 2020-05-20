@@ -11,10 +11,6 @@ found by the vcpkg Cargo build helper.
 """
 keywords = ["build-dependencies"]
 
-[badges]
-travis-ci = { repository = "mcgoo/vcpkg-rs", branch = "master" }
-appveyor = { repository = "mcgoo/vcpkg-rs", branch = "master", service="github" }
-
 [dependencies]
 vcpkg = { version = "0.2.8", path = "../vcpkg" }
 clap = "2.31"

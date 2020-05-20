@@ -13,10 +13,6 @@ time in order to be used in Cargo build scripts.
 keywords = ["build-dependencies", "windows", "ffi", "win32"]
 categories = ["os::windows-apis"]
 
-[badges]
-travis-ci = { repository = "mcgoo/vcpkg-rs", branch = "master" }
-appveyor = { repository = "mcgoo/vcpkg-rs", branch = "master", service="github" }
-
 [dependencies]
 
 [dev-dependencies]
