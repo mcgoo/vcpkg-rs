@@ -68,6 +68,10 @@
 
 - vcpkg_cli should say if there are other versions of the ports available that do not match what is being looked for
 
+- add some commentary describing the vcpkg target triplets on windows - static vs dynamic crt and the fact that rust prefers something in between - dynamic crt, static libs on top of that.
+
+- vcpkg now has a community supported triplet called x64-windows-static-md which is a match for the default Rust build type on windows - dynamic linking to the c runtime, and static linking to other libraries.
+
 ## Creating empty files from list files
 
 ```sh
