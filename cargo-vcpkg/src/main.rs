@@ -9,7 +9,7 @@ use vcpkg::{find_vcpkg_root, Config};
 // settings for a specific Rust target
 #[derive(Debug, Deserialize)]
 struct Target {
-    vcpkg_triplet: Option<String>,
+    triplet: Option<String>,
     // TODO: make at least this install key empty so a specific target
     // can opt out of installing packages
     #[serde(default = "Vec::new")]
@@ -43,6 +43,10 @@ fn main() {
 fn run() -> Result<(), anyhow::Error> {
     let target_triple = target_triple();
 
+    //let vcpkg_triplet =
+
+    // eprintln!("{:?}", std::env::var("RUSTFLAGS"));
+
     let verbose = true;
 
     let mut args = std::env::args().skip_while(|val| !val.starts_with("--manifest-path"));
@@ -67,13 +71,15 @@ fn run() -> Result<(), anyhow::Error> {
 
     let mut git_url = None;
     let mut vcpkg_ports = Vec::new();
-    let mut rev_tag_branch: Option<String> = None; //= "4c1db68"
+    let mut rev_tag_branch: Option<String> = None;
+    let mut vcpkg_triplet = None;
     for p in &metadata.packages {
         if let Ok(v) = serde_json::from_value::<Metadata>(p.metadata.clone()) {
             let v = v.vcpkg;
+            let is_root_crate = p.id == *root_crate;
 
             // only use git url and rev from the root crate
-            if v.git.is_some() && p.id == *root_crate {
+            if v.git.is_some() && is_root_crate {
                 git_url = v.git;
 
                 // TODO: check the target and use it's package set if required
@@ -93,11 +99,14 @@ fn run() -> Result<(), anyhow::Error> {
             // an install key, use that rather than the general install key
             match v.target.get(&target_triple) {
                 Some(target) if !target.install.is_empty() => {
-                    vcpkg_ports.extend_from_slice(&target.install.as_slice())
+                    vcpkg_ports.extend_from_slice(&target.install.as_slice());
+                    if is_root_crate {
+                        vcpkg_triplet = target.triplet.clone();
+                    }
                 }
                 _ => {
                     // not found or install is empty
-                    vcpkg_ports.extend_from_slice(&v.install.as_slice())
+                    vcpkg_ports.extend_from_slice(&v.install.as_slice());
                 }
             }
         }
@@ -171,7 +180,7 @@ fn run() -> Result<(), anyhow::Error> {
 
     // try and run 'vcpkg update' and if it fails or gives the version warning
     // rebuild it
-    let require_bootstrap = match vcpkg_command(&vcpkg_root)
+    let require_bootstrap = match vcpkg_command(&vcpkg_root, &vcpkg_triplet)
         .arg("update")
         .stdout(Stdio::inherit())
         .output()
@@ -209,7 +218,7 @@ fn run() -> Result<(), anyhow::Error> {
         println!("{}", String::from_utf8_lossy(&output.stderr));
     }
 
-    let output = vcpkg_command(&vcpkg_root)
+    let output = vcpkg_command(&vcpkg_root, &vcpkg_triplet)
         .arg("install")
         .args(vcpkg_ports.as_slice())
         .stdout(Stdio::inherit())
@@ -232,7 +241,7 @@ fn target_triple() -> String {
     }
 }
 
-fn vcpkg_command(vcpkg_root: &std::path::Path) -> Command {
+fn vcpkg_command(vcpkg_root: &std::path::Path, vcpkg_triplet: &Option<String>) -> Command {
     let mut x = vcpkg_root.to_path_buf();
     if cfg!(windows) {
         x.push("vcpkg.exe");
@@ -241,6 +250,10 @@ fn vcpkg_command(vcpkg_root: &std::path::Path) -> Command {
     }
     let mut command = Command::new(x);
     command.current_dir(&vcpkg_root);
+    if let Some(triplet) = &vcpkg_triplet {
+        command.arg("--triplet");
+        command.arg(triplet);
+    }
     command
 }
 

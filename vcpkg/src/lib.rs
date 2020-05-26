@@ -63,6 +63,7 @@
 // openssl-sys is backward compatible that far. (Actually, the oldest release
 // crate openssl version 0.10 seems to build against is now Rust 1.24.1?)
 #![allow(deprecated)]
+#![allow(warnings)]
 
 #[cfg(test)]
 #[macro_use]
@@ -181,7 +182,7 @@ impl error::Error for Error {
         match *self {
             Error::DisabledByEnv(_) => "vcpkg-rs requested to be aborted",
             Error::RequiredEnvMissing(_) => "a required env setting is missing",
-            Error::NotMSVC => "vcpkg-rs only can only find libraries for MSVC ABI 64 bit builds",
+            Error::NotMSVC => "vcpkg-rs only can only find libraries for MSVC ABI builds",
             Error::VcpkgNotFound(_) => "could not find Vcpkg tree",
             Error::LibNotFound(_) => "could not find library in Vcpkg tree",
             Error::VcpkgInstallation(_) => "could not look up details of packages in vcpkg tree",
@@ -257,45 +258,40 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
             .join("vcpkg")
             .join("vcpkg.user.targets");
 
-        let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
-            Error::VcpkgNotFound(
-                "No vcpkg.user.targets found. Set the VCPKG_ROOT environment \
-             variable or run 'vcpkg integrate install'"
-                    .to_string(),
-            )
-        }));
-        let file = BufReader::new(&file);
+        if let Ok(file) = File::open(vcpkg_user_targets_path.clone()) {
+            let file = BufReader::new(&file);
 
-        for line in file.lines() {
-            let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
-                "Parsing of {} failed.",
-                vcpkg_user_targets_path.to_string_lossy().to_owned()
-            ))));
-            let mut split = line.split("Project=\"");
-            split.next(); // eat anything before Project="
-            if let Some(found) = split.next() {
-                // " is illegal in a Windows pathname
-                if let Some(found) = found.split_terminator('"').next() {
-                    let mut vcpkg_root = PathBuf::from(found);
-                    if !(vcpkg_root.pop()
-                        && vcpkg_root.pop()
-                        && vcpkg_root.pop()
-                        && vcpkg_root.pop())
-                    {
-                        return Err(Error::VcpkgNotFound(format!(
-                            "Could not find vcpkg root above {}",
-                            found
-                        )));
+            for line in file.lines() {
+                let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
+                    "Parsing of {} failed.",
+                    vcpkg_user_targets_path.to_string_lossy().to_owned()
+                ))));
+                let mut split = line.split("Project=\"");
+                split.next(); // eat anything before Project="
+                if let Some(found) = split.next() {
+                    // " is illegal in a Windows pathname
+                    if let Some(found) = found.split_terminator('"').next() {
+                        let mut vcpkg_root = PathBuf::from(found);
+                        if !(vcpkg_root.pop()
+                            && vcpkg_root.pop()
+                            && vcpkg_root.pop()
+                            && vcpkg_root.pop())
+                        {
+                            return Err(Error::VcpkgNotFound(format!(
+                                "Could not find vcpkg root above {}",
+                                found
+                            )));
+                        }
+                        return Ok(vcpkg_root);
                     }
-                    return Ok(vcpkg_root);
                 }
             }
-        }
 
-        return Err(Error::VcpkgNotFound(format!(
-            "Project location not found parsing {}.",
-            vcpkg_user_targets_path.to_string_lossy().to_owned()
-        )));
+            // return Err(Error::VcpkgNotFound(format!(
+            //     "Project location not found parsing {}.",
+            //     vcpkg_user_targets_path.to_string_lossy().to_owned()
+            // )));
+        }
     }
 
     // walk up the directory structure and see if it is there
@@ -308,14 +304,17 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
             try_root.push(".vcpkg-root");
             if try_root.exists() {
                 try_root.pop();
+                eprintln!("root={}", try_root.display());
                 return Ok(try_root);
             }
         }
     }
 
     Err(Error::VcpkgNotFound(
-        "Failed to read either VCPKG_ROOT or LOCALAPPDATA environment variables".to_string(),
-    )) // not present or can't utf8
+        "No vcpkg installation found. Set the VCPKG_ROOT environment \
+             variable or run 'vcpkg integrate install'"
+            .to_string(),
+    ))
 }
 
 fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
@@ -336,13 +335,13 @@ fn find_vcpkg_target(cfg: &Config, msvc_target: &MSVCTarget) -> Result<VcpkgTarg
     let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
 
-    let (static_lib, static_appendage, lib_suffix, strip_lib_prefix) = match msvc_target {
+    let (is_static, static_appendage, lib_suffix, strip_lib_prefix) = match msvc_target {
         &MSVCTarget::X64Windows | &MSVCTarget::X86Windows => {
-            let static_lib = env::var("CARGO_CFG_TARGET_FEATURE")
+            let is_static = env::var("CARGO_CFG_TARGET_FEATURE")
                 .unwrap_or(String::new()) // rustc 1.10
                 .contains("crt-static");
-            let static_appendage = if static_lib { "-static" } else { "" };
-            (static_lib, static_appendage, "lib", false)
+            let static_appendage = if is_static { "-static" } else { "" };
+            (is_static, static_appendage, "lib", false)
         }
         _ => (true, "", "a", true),
     };
@@ -351,19 +350,19 @@ fn find_vcpkg_target(cfg: &Config, msvc_target: &MSVCTarget) -> Result<VcpkgTarg
     base.push("installed");
     let status_path = base.join("vcpkg");
 
-    let vcpkg_triple = format!("{}{}", msvc_target.to_string(), static_appendage);
-    base.push(&vcpkg_triple);
+    let vcpkg_triplet = format!("{}{}", msvc_target.to_string(), static_appendage);
+    base.push(&vcpkg_triplet);
 
     let lib_path = base.join("lib");
     let bin_path = base.join("bin");
     let include_path = base.join("include");
 
     Ok(VcpkgTarget {
-        vcpkg_triple: vcpkg_triple,
+        vcpkg_triplet: vcpkg_triplet,
         lib_path: lib_path,
         bin_path: bin_path,
         include_path: include_path,
-        is_static: static_lib,
+        is_static: is_static,
         status_path: status_path,
         lib_suffix: lib_suffix.to_owned(),
         strip_lib_prefix: strip_lib_prefix,
@@ -390,7 +389,7 @@ fn load_port_manifest(
 ) -> Result<(Vec<String>, Vec<String>), Error> {
     let manifest_file = path.join("info").join(format!(
         "{}_{}_{}.list",
-        port, version, vcpkg_target.vcpkg_triple
+        port, version, vcpkg_target.vcpkg_triplet
     ));
 
     let mut dlls = Vec::new();
@@ -405,8 +404,8 @@ fn load_port_manifest(
 
     let file = BufReader::new(&f);
 
-    let dll_prefix = Path::new(&vcpkg_target.vcpkg_triple).join("bin");
-    let lib_prefix = Path::new(&vcpkg_target.vcpkg_triple).join("lib");
+    let dll_prefix = Path::new(&vcpkg_target.vcpkg_triplet).join("bin");
+    let lib_prefix = Path::new(&vcpkg_target.vcpkg_triplet).join("lib");
 
     for line in file.lines() {
         let line = line.unwrap();
@@ -539,7 +538,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     }
 
     for (&(name, arch, feature), current) in &seen_names {
-        if **arch == target.vcpkg_triple {
+        if **arch == target.vcpkg_triplet {
             let mut deps = if let Some(deps) = current.get("Depends") {
                 deps.split(", ").map(|x| x.to_owned()).collect()
             } else {
@@ -593,7 +592,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
 
 /// paths and triple for the chosen target
 struct VcpkgTarget {
-    vcpkg_triple: String,
+    vcpkg_triplet: String,
     lib_path: PathBuf,
     bin_path: PathBuf,
     include_path: PathBuf,
@@ -898,7 +897,11 @@ impl Config {
             let ports = try!(load_ports(&vcpkg_target));
 
             if ports.get(&port_name.to_owned()).is_none() {
-                return Err(Error::LibNotFound(port_name.to_owned()));
+                return Err(Error::LibNotFound(format!(
+                    "{} is not installed for vcpkg triplet {}",
+                    port_name.to_owned(),
+                    vcpkg_target.vcpkg_triplet
+                )));
             }
 
             // the complete set of ports required
