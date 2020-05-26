@@ -21,3 +21,5 @@ jobs:
           vcp/bootstrap-vcpkg.sh
       - name: Run integration tests
         run: tests/run.sh
+      - name: Run cargo-vcpkg integration tests
+        run: wstest/run.sh

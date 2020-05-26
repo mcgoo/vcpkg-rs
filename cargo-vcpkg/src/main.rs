@@ -43,6 +43,8 @@ fn main() {
 fn run() -> Result<(), anyhow::Error> {
     let target_triple = target_triple();
 
+    let verbose = true;
+
     let mut args = std::env::args().skip_while(|val| !val.starts_with("--manifest-path"));
     let mut cmd = cargo_metadata::MetadataCommand::new();
     match args.next() {
@@ -54,7 +56,7 @@ fn run() -> Result<(), anyhow::Error> {
         }
         None => {}
     }
-    let metadata = cmd.exec().unwrap();
+    let metadata = cmd.exec()?;
 
     let resolve = metadata.resolve.as_ref().unwrap();
 
@@ -114,7 +116,9 @@ fn run() -> Result<(), anyhow::Error> {
         vcpkg_root.to_path_buf();
         vcpkg_root
     });
-
+    if verbose {
+        println!("vcpkg root is {}", vcpkg_root.display());
+    }
     // if it does not exist, clone vcpkg from git
     let mut vcpkg_root_file = vcpkg_root.clone();
     vcpkg_root_file.push(".vcpkg-root");
@@ -167,24 +171,24 @@ fn run() -> Result<(), anyhow::Error> {
 
     // try and run 'vcpkg update' and if it fails or gives the version warning
     // rebuild it
-    let mut vcpkg_command = Command::new("./vcpkg");
-    //vcpkg_command.current_dir(&vcpkg_root);
-
-    let require_bootstrap = match vcpkg_command
-        //.clone()
+    let require_bootstrap = match vcpkg_command(&vcpkg_root)
         .arg("update")
-        .current_dir(&vcpkg_root)
         .stdout(Stdio::inherit())
         .output()
     {
+        // TODO: fix this
+        // Warning: Different source is available for vcpkg
         Ok(output) if output.status.success() => false,
         Ok(output) => {
-            println!("{}", String::from_utf8_lossy(&output.stdout));
-            println!("{}", String::from_utf8_lossy(&output.stderr));
+            println!("++{}", String::from_utf8_lossy(&output.stdout));
+            println!("--{}", String::from_utf8_lossy(&output.stderr));
             println!("{:?}", output.status);
             true
         }
-        Err(_) => true,
+        Err(e) => {
+            eprintln!("vcpkg update failed: {}", e);
+            true
+        }
     };
 
     // build vcpkg
@@ -193,6 +197,7 @@ fn run() -> Result<(), anyhow::Error> {
     // }
 
     if require_bootstrap {
+        println!("Running vcpkg bootstrap");
         let output = Command::new("sh")
             .arg("-c")
             .arg("./bootstrap-vcpkg.sh")
@@ -204,16 +209,12 @@ fn run() -> Result<(), anyhow::Error> {
         println!("{}", String::from_utf8_lossy(&output.stderr));
     }
 
-    let mut vcpkg_command = Command::new("./vcpkg");
-    //vcpkg_command.current_dir(&vcpkg_root);
-
-    let output = vcpkg_command
+    let output = vcpkg_command(&vcpkg_root)
         .arg("install")
         .args(vcpkg_ports.as_slice())
-        .current_dir(&vcpkg_root)
         .stdout(Stdio::inherit())
         .output()
-        .expect("failed to execute process");
+        .expect("failed to execute vcpkg install");
     println!("{}", String::from_utf8_lossy(&output.stdout));
     println!("{}", String::from_utf8_lossy(&output.stderr));
 
@@ -231,7 +232,17 @@ fn target_triple() -> String {
     }
 }
 
-// Warning: Different source is available for vcpkg
+fn vcpkg_command(vcpkg_root: &std::path::Path) -> Command {
+    let mut x = vcpkg_root.to_path_buf();
+    if cfg!(windows) {
+        x.push("vcpkg.exe");
+    } else {
+        x.push("vcpkg")
+    }
+    let mut command = Command::new(x);
+    command.current_dir(&vcpkg_root);
+    command
+}
 
 /*
 

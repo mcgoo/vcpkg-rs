@@ -252,49 +252,71 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
 
     // see if there is a per-user vcpkg tree that has been integrated into msbuild
     // using `vcpkg integrate install`
-    let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| Error::VcpkgNotFound(
-        "Failed to read either VCPKG_ROOT or LOCALAPPDATA environment variables".to_string()
-    ))); // not present or can't utf8
+    if let Ok(ref local_app_data) = env::var("LOCALAPPDATA") {
+        let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
+            .join("vcpkg")
+            .join("vcpkg.user.targets");
 
-    let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
-        .join("vcpkg")
-        .join("vcpkg.user.targets");
-
-    let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
-        Error::VcpkgNotFound(
-            "No vcpkg.user.targets found. Set the VCPKG_ROOT environment \
+        let file = try!(File::open(vcpkg_user_targets_path.clone()).map_err(|_| {
+            Error::VcpkgNotFound(
+                "No vcpkg.user.targets found. Set the VCPKG_ROOT environment \
              variable or run 'vcpkg integrate install'"
-                .to_string(),
-        )
-    }));
-    let file = BufReader::new(&file);
+                    .to_string(),
+            )
+        }));
+        let file = BufReader::new(&file);
 
-    for line in file.lines() {
-        let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
-            "Parsing of {} failed.",
-            vcpkg_user_targets_path.to_string_lossy().to_owned()
-        ))));
-        let mut split = line.split("Project=\"");
-        split.next(); // eat anything before Project="
-        if let Some(found) = split.next() {
-            // " is illegal in a Windows pathname
-            if let Some(found) = found.split_terminator('"').next() {
-                let mut vcpkg_root = PathBuf::from(found);
-                if !(vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop() && vcpkg_root.pop()) {
-                    return Err(Error::VcpkgNotFound(format!(
-                        "Could not find vcpkg root above {}",
-                        found
-                    )));
+        for line in file.lines() {
+            let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
+                "Parsing of {} failed.",
+                vcpkg_user_targets_path.to_string_lossy().to_owned()
+            ))));
+            let mut split = line.split("Project=\"");
+            split.next(); // eat anything before Project="
+            if let Some(found) = split.next() {
+                // " is illegal in a Windows pathname
+                if let Some(found) = found.split_terminator('"').next() {
+                    let mut vcpkg_root = PathBuf::from(found);
+                    if !(vcpkg_root.pop()
+                        && vcpkg_root.pop()
+                        && vcpkg_root.pop()
+                        && vcpkg_root.pop())
+                    {
+                        return Err(Error::VcpkgNotFound(format!(
+                            "Could not find vcpkg root above {}",
+                            found
+                        )));
+                    }
+                    return Ok(vcpkg_root);
                 }
-                return Ok(vcpkg_root);
+            }
+        }
+
+        return Err(Error::VcpkgNotFound(format!(
+            "Project location not found parsing {}.",
+            vcpkg_user_targets_path.to_string_lossy().to_owned()
+        )));
+    }
+
+    // walk up the directory structure and see if it is there
+    if let Some(path) = env::var_os("OUT_DIR") {
+        // path.ancestors() is supported from Rust 1.28
+        let mut path = PathBuf::from(path);
+        while path.pop() {
+            let mut try_root = path.clone();
+            try_root.push("vcpkg");
+            try_root.push(".vcpkg-root");
+            if try_root.exists() {
+                try_root.pop();
+                eprintln!("found it at {}", try_root.display());
+                return Ok(try_root);
             }
         }
     }
 
-    Err(Error::VcpkgNotFound(format!(
-        "Project location not found parsing {}.",
-        vcpkg_user_targets_path.to_string_lossy().to_owned()
-    )))
+    Err(Error::VcpkgNotFound(
+        "Failed to read either VCPKG_ROOT or LOCALAPPDATA environment variables".to_string(),
+    )) // not present or can't utf8
 }
 
 fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
