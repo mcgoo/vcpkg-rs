@@ -11,7 +11,7 @@ A library to find native dependencies in a vcpkg tree at build
 time in order to be used in Cargo build scripts.
 """
 keywords = ["build-dependencies", "windows", "ffi", "win32"]
-categories = ["os::windows-apis"]
+categories = ["development-tools::build-utils"]
 
 [dependencies]
 
