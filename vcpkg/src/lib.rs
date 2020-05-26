@@ -304,7 +304,6 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
             try_root.push(".vcpkg-root");
             if try_root.exists() {
                 try_root.pop();
-                eprintln!("root={}", try_root.display());
                 return Ok(try_root);
             }
         }
