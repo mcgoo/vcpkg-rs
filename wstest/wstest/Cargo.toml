@@ -16,4 +16,5 @@ rev = "4c1db68"
 
 [package.metadata.vcpkg.target]
 x86_64-apple-darwin = { install = ["sdl2"] }
-x86_64-pc-windows-msvc = { triplet = "x64-windows", install = ["binn"] }
+x86_64-unknown-linux-gnu = { install = ["sdl2"] }
+x86_64-pc-windows-msvc = { triplet = "x64-windows", install = ["sdl2"] }
