@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{bail, Context};
 use serde::Deserialize;
 use std::{
     collections::BTreeMap,
@@ -9,6 +9,9 @@ use vcpkg::{find_vcpkg_root, Config};
 // settings for a specific Rust target
 #[derive(Debug, Deserialize)]
 struct Target {
+    vcpkg_triplet: Option<String>,
+    // TODO: make at least this install key empty so a specific target
+    // can opt out of installing packages
     #[serde(default = "Vec::new")]
     install: Vec<String>,
 }
@@ -16,6 +19,7 @@ struct Target {
 #[derive(Debug, Deserialize)]
 struct Vcpkg {
     vcpkg_root: Option<String>,
+    #[serde(default = "BTreeMap::new")]
     target: BTreeMap<String, Target>,
     branch: Option<String>,
     rev: Option<String>,
@@ -35,9 +39,11 @@ fn main() {
         std::process::exit(1);
     });
 }
-fn run() -> Result<(), anyhow::Error> {
-    let mut args = std::env::args().skip_while(|val| !val.starts_with("--manifest-path"));
 
+fn run() -> Result<(), anyhow::Error> {
+    let target_triple = target_triple();
+
+    let mut args = std::env::args().skip_while(|val| !val.starts_with("--manifest-path"));
     let mut cmd = cargo_metadata::MetadataCommand::new();
     match args.next() {
         Some(p) if p == "--manifest-path" => {
@@ -50,29 +56,52 @@ fn run() -> Result<(), anyhow::Error> {
     }
     let metadata = cmd.exec().unwrap();
 
+    let resolve = metadata.resolve.as_ref().unwrap();
+
+    let root_crate = resolve
+        .root
+        .as_ref()
+        .context("cannot run on a virtual manifest, this command requires running against an actual package in this workspace.")?;
+
     let mut git_url = None;
-    //let vcpkg_ports = Vec::new();
+    let mut vcpkg_ports = Vec::new();
+    let mut rev_tag_branch: Option<String> = None; //= "4c1db68"
     for p in &metadata.packages {
         if let Ok(v) = serde_json::from_value::<Metadata>(p.metadata.clone()) {
             let v = v.vcpkg;
-            git_url = v.git.clone();
-            // dbg!(&p);
-            dbg!(&p.metadata);
 
-            // TODO: check the target and use it's package set if required
+            // only use git url and rev from the root crate
+            if v.git.is_some() && p.id == *root_crate {
+                git_url = v.git;
 
-            let x = match (&v.branch, &v.tag, &v.rev) {
-                (Some(b), None, None) => b,
-                (None, Some(t), None) => t,
-                (None, None, Some(r)) => r,
-                _ => {
-                    bail!("must specify one of branch,rev,tag for git source");
+                // TODO: check the target and use it's package set if required
+                // TODO: get the correct target
+                // TODO: make sure to pull if it's a branch
+                rev_tag_branch = match (&v.branch, &v.tag, &v.rev) {
+                    (Some(b), None, None) => Some(b.into()),
+                    (None, Some(t), None) => Some(t.into()),
+                    (None, None, Some(r)) => Some(r.into()),
+                    _ => {
+                        bail!("must specify one of branch,rev,tag for git source");
+                    }
+                };
+            }
+
+            // if there is specific configuration for the target and it has
+            // an install key, use that rather than the general install key
+            match v.target.get(&target_triple) {
+                Some(target) if !target.install.is_empty() => {
+                    vcpkg_ports.extend_from_slice(&target.install.as_slice())
                 }
-            };
-
-            dbg!(v);
+                _ => {
+                    // not found or install is empty
+                    vcpkg_ports.extend_from_slice(&v.install.as_slice())
+                }
+            }
         }
     }
+
+    println!("install set is {:?}", vcpkg_ports);
 
     // should we modify the existing?
     // let mut allow_updates = true;
@@ -124,10 +153,8 @@ fn run() -> Result<(), anyhow::Error> {
     // there needs to be some serious thought here because if we are on a branch
     // does this mean we should fetch?
 
-    // gotta get this from the metadata in the target package
-    let rev_tag_branch = "4c1db68";
-
     // check out the required rev
+    let rev_tag_branch = rev_tag_branch.unwrap();
     let output = Command::new("git")
         .arg("checkout")
         .arg(rev_tag_branch)
@@ -181,9 +208,8 @@ fn run() -> Result<(), anyhow::Error> {
     //vcpkg_command.current_dir(&vcpkg_root);
 
     let output = vcpkg_command
-        //.clone()
         .arg("install")
-        .arg("openssl")
+        .args(vcpkg_ports.as_slice())
         .current_dir(&vcpkg_root)
         .stdout(Stdio::inherit())
         .output()
@@ -194,6 +220,15 @@ fn run() -> Result<(), anyhow::Error> {
     // done
     println!("done");
     Ok(())
+}
+
+fn target_triple() -> String {
+    let mut args = std::env::args().skip_while(|val| !val.starts_with("--target"));
+    match args.next() {
+        Some(p) if p == "--target" => args.next().unwrap(),
+        Some(p) => p.trim_start_matches("--target=").into(),
+        None => std::env!("TARGET").into(),
+    }
 }
 
 // Warning: Different source is available for vcpkg

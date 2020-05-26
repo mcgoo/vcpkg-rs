@@ -237,7 +237,9 @@ pub fn find_package(package: &str) -> Result<Library, Error> {
     Config::new().find_package(package)
 }
 
-fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
+/// Find the vcpkg root
+#[doc(hidden)]
+pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
     // prefer the setting from the use if there is one
     if let &Some(ref path) = &cfg.vcpkg_root {
         return Ok(path.clone());
@@ -253,6 +255,7 @@ fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
     let local_app_data = try!(env::var("LOCALAPPDATA").map_err(|_| Error::VcpkgNotFound(
         "Failed to read either VCPKG_ROOT or LOCALAPPDATA environment variables".to_string()
     ))); // not present or can't utf8
+
     let vcpkg_user_targets_path = Path::new(local_app_data.as_str())
         .join("vcpkg")
         .join("vcpkg.user.targets");
