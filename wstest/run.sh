@@ -4,6 +4,10 @@ set -ex
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPTDIR
 
+unset VCPKG_ROOT
+unset RUSTFLAGS
+unset VCPKGRS_DYNAMIC
+
 pushd ../cargo-vcpkg
 cargo install --path .
 popd
