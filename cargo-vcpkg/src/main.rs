@@ -217,9 +217,10 @@ fn run() -> Result<(), anyhow::Error> {
         println!("{}", String::from_utf8_lossy(&output.stdout));
         println!("{}", String::from_utf8_lossy(&output.stderr));
     }
-
+    // TODO: upgrade anything that is installed
     let output = vcpkg_command(&vcpkg_root, &vcpkg_triplet)
         .arg("install")
+        .arg("--recurse")
         .args(vcpkg_ports.as_slice())
         .stdout(Stdio::inherit())
         .output()
