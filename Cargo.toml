@@ -1,5 +1,5 @@
 [workspace]
-members = [ "vcpkg", "vcpkg_cli" ]
+members = [ "vcpkg", "vcpkg_cli", "cargo-vcpkg" ]
 exclude = [ "systest", "tests" ]
 
 # [patch.crates-io]
