@@ -5,7 +5,7 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 edition = "2018"
 
 [build-dependencies]
-vcpkg = { version = "0.2.8" }
+vcpkg = { version = "0.2.9" }
 
 [dependencies]
 foo = { path = "../foo" }
