@@ -6,7 +6,7 @@
 1. run systest\test.cmd
 1. check that everything is committed and work dir is clean
 1. push to master on github
-1. check that gitlab ci, appveyor and travis pass
+1. check that github actions ci passes
 1. update changelog, commit and push
 1. update version number in Cargo.toml for the crate to be released
 1. commit
