@@ -16,5 +16,5 @@ categories = ["development-tools::build-utils"]
 [dependencies]
 
 [dev-dependencies]
-tempdir="0.3.7"
+tempdir = "0.3.7"
 lazy_static = "1"

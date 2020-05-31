@@ -12,5 +12,5 @@ pushd ../cargo-vcpkg
 cargo install --path .
 popd
 
-cargo vcpkg install --manifest-path=wstest/Cargo.toml
+cargo vcpkg build --manifest-path=wstest/Cargo.toml
 cargo run --manifest-path=wstest/Cargo.toml

@@ -1,10 +1,10 @@
 //! A build dependency for Cargo libraries to find libraries in a
-//! [Vcpkg](https://github.com/Microsoft/vcpkg) tree. From a Vcpkg package name
+//! [Vcpkg](https://github.com/microsoft/vcpkg) tree. From a Vcpkg package name
 //! this build helper will emit cargo metadata to link it and it's dependencies
 //! (excluding system libraries, which it cannot derive).
 //!
-//! **Note:** You must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static` or
-//! `VCPKGRS_DYNAMIC=1` in your environment or the vcpkg-rs helper
+//! **Note:** On Windows you must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static`
+//! or `VCPKGRS_DYNAMIC=1` in your environment or the vcpkg-rs helper
 //! will not find any libraries. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
 //! generate dynamically linked binaries, in which case you will have to arrange for
 //! dlls from your Vcpkg installation to be available in your path.
@@ -304,7 +304,16 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
             try_root.push(".vcpkg-root");
             if try_root.exists() {
                 try_root.pop();
-                return Ok(try_root);
+
+                // this could walk up beyond the target directory and find a vcpkg installation
+                // that would not have been found by previous versions of vcpkg-rs, so this
+                // checks that the vcpkg tree was created by cargo-vcpkg and ignores it if not.
+                let mut cv_cfg = try_root.clone();
+                cv_cfg.push("downloads");
+                cv_cfg.push("cargo-vcpkg.toml");
+                if cv_cfg.exists() {
+                    return Ok(try_root);
+                }
             }
         }
     }
