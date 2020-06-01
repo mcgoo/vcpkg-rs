@@ -81,7 +81,7 @@ fn main() {
     // cargo passes us the "vcpkg" arg when it calls us. Drop it before
     // parsing the arg list so t doesn't end up the usage description
     let mut args = std::env::args().collect::<Vec<_>>();
-    if args.len() > 2 && args[1] == "vcpkg" {
+    if args.len() >= 2 && args[1] == "vcpkg" {
         args.remove(1);
     }
     let args = Opt::from_iter(args);
