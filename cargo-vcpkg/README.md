@@ -1,6 +1,6 @@
 # cargo-vcpkg [![Windows](https://github.com/mcgoo/vcpkg-rs/workflows/Windows/badge.svg?branch=master)](https://github.com/mcgoo/vcpkg-rs/actions?query=workflow%3AWindows) [![macOS](https://github.com/mcgoo/vcpkg-rs/workflows/macOS/badge.svg?branch=master)](https://github.com/mcgoo/vcpkg-rs/actions?query=workflow%3AmacOS) [![Linux](https://github.com/mcgoo/vcpkg-rs/workflows/Linux/badge.svg?branch=master)](https://github.com/mcgoo/vcpkg-rs/actions?query=workflow%3ALinux)
 
-[Changelog](CHANGELOG.md)
+[Changelog](https://github.com/mcgoo/vcpkg-rs/blob/master/cargo-vcpkg/CHANGELOG.md)
 
 This command `cargo vcpkg` will create a vcpkg tree and install the packages specified in `Cargo.toml` files in the crate being built and crates it depends on.
 
