@@ -1,9 +1,10 @@
 use anyhow::{bail, Context};
+//use indicatif::{ProgressBar, ProgressStyle};
 use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::Write,
+    io::{BufRead, BufReader, Write},
     process::{Command, Output, Stdio},
     str,
     time::SystemTime,
@@ -282,12 +283,40 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     }
 
     // TODO: upgrade anything that is installed
-    print_tag("Compiling", &vcpkg_ports.join(", "));
+    print_tag("Installing", &vcpkg_ports.join(" "));
     let mut v = vcpkg_command(&vcpkg_root, &vcpkg_triplet);
     v.arg("install");
     v.arg("--recurse");
     v.args(vcpkg_ports.as_slice());
-    run_command(v, verbose).context("failed to execute vcpkg install")?;
+    v.stdout(Stdio::piped());
+
+    let mut output = v.spawn()?;
+
+    let reader = BufReader::new(output.stdout.take().context("could not get stdout")?);
+
+    // let style = ProgressStyle::default_bar()
+    //     .progress_chars("=> ")
+    //     .template("    Building [{bar:40.cyan/blue}] {pos:>7}/{len:7} {msg}");
+    // let bar = ProgressBar::new(10).with_style(style);
+    for line in reader.lines().flat_map(Result::ok) {
+        parse_build_line(&line).map(|(pkg, triplet, _num, _tot)| {
+            print_tag("Compiling", &format!("{} (triplet {})", pkg, triplet))
+        });
+
+        if verbose {
+            println!("{}", line);
+        }
+        // bar.set_length(tot);
+        // bar.set_position(num);
+    }
+    // grab anything that is left
+    let output = output.wait_with_output()?;
+
+    if !output.status.success() && !verbose {
+        println!("-- stdout --\n{}", String::from_utf8_lossy(&output.stdout));
+        println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
+        bail!("failed");
+    }
 
     let duration = SystemTime::now().duration_since(start_time).unwrap();
     print_tag("Finished", &format!("in {:0.2}s", duration.as_secs_f32()));
@@ -345,3 +374,38 @@ fn print_tag(tag: &str, detail: &str) {
     stdout.reset().unwrap();
     println!("{}", detail);
 }
+
+fn parse_build_line(line: &str) -> Option<(String, String, u64, u64)> {
+    let line = Some(line)
+        .filter(|line| line.starts_with("Starting package "))
+        .map(|line| line.trim_start_matches("Starting package ").to_string())?;
+
+    let progress_and_pkg_trp = line.splitn(2, ":").collect::<Vec<_>>();
+    if progress_and_pkg_trp.len() != 2 {
+        return None;
+    }
+
+    let pkg_with_triplet = progress_and_pkg_trp[1].trim();
+
+    let (pkg, triplet) = match pkg_with_triplet
+        .rsplitn(2, ":")
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [t, p] => (p.to_string(), t.to_string()),
+        _ => return None,
+    };
+
+    let (cnt, tot) = match &progress_and_pkg_trp[0]
+        .splitn(2, "/")
+        .filter_map(|s| s.parse::<u64>().ok())
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [cnt, tot] => (*cnt, *tot),
+        _ => (0, 0),
+    };
+
+    Some((pkg, triplet, cnt, tot))
+}
+//    Building [==============================================> ] 58/59
