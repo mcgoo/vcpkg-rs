@@ -200,16 +200,6 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
         cmd.arg(&vcpkg_root);
         let _output = run_command(cmd, verbose).context("failed to run git clone")?;
 
-        // create a cargo-vcpkg.toml in the newly created vcpkg tree
-        let mut cargo_vcpkg_config_file = vcpkg_root.clone();
-        cargo_vcpkg_config_file.push("downloads");
-        std::fs::create_dir_all(&cargo_vcpkg_config_file)
-            .context("could not create downloads directory in vcpkg tree")?;
-        cargo_vcpkg_config_file.push("cargo-vcpkg.toml");
-        let mut file =
-            File::create(cargo_vcpkg_config_file).context("could not create cargo-vcpkg.toml")?;
-        file.write_all(b"# This file was created automatically by cargo-vcpkg\n")?;
-
     //eprintln!("git clone done = {:?}", output.status);
     } else {
         print_tag("Fetching", "vcpkg");
@@ -217,12 +207,25 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
         cmd.arg("fetch");
         cmd.arg("--verbose");
         cmd.arg("--all");
-        let output = run_command(cmd, verbose).context("failed to run git fatch")?;
+        let output = run_command(cmd, verbose).context("failed to run git fetch")?;
 
         if !output.status.success() {
             bail!("fetch failed");
         }
     }
+
+    // create a cargo-vcpkg.toml in the vcpkg tree
+    let mut cargo_vcpkg_config_file = vcpkg_root.clone();
+    cargo_vcpkg_config_file.push("downloads");
+    std::fs::create_dir_all(&cargo_vcpkg_config_file)
+        .context("could not create downloads directory in vcpkg tree")?;
+    cargo_vcpkg_config_file.push("cargo-vcpkg.toml");
+    if !cargo_vcpkg_config_file.exists() {
+        let mut file =
+            File::create(cargo_vcpkg_config_file).context("could not create cargo-vcpkg.toml")?;
+        file.write_all(b"# This file was created automatically by cargo-vcpkg\n")?;
+    }
+
     // otherwise, check that the rev is where we want it to be
     // there needs to be some serious thought here because if we are on a branch
     // does this mean we should fetch?
