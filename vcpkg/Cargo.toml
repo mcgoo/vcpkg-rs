@@ -10,7 +10,7 @@ description = """
 A library to find native dependencies in a vcpkg tree at build
 time in order to be used in Cargo build scripts.
 """
-keywords = ["build-dependencies", "windows", "ffi", "win32"]
+keywords = ["build-dependencies", "windows", "macos", "linux"]
 categories = ["development-tools::build-utils"]
 
 [dependencies]
