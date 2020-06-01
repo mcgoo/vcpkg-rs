@@ -260,17 +260,19 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
         Err(_) => true,
     };
 
-    // build vcpkg
-    // if cfg!(windows) {
-
-    // }
-
     if require_bootstrap {
-        // let version = File::open()
         print_tag("Compiling", "vcpkg");
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c");
-        cmd.arg("./bootstrap-vcpkg.sh");
+        let mut cmd = if cfg!(windows) {
+            let mut cmd = Command::new("cmd");
+            cmd.arg("/C");
+            cmd.arg("bootstrap-vcpkg.bat");
+            cmd
+        } else {
+            let mut cmd = Command::new("sh");
+            cmd.arg("-c");
+            cmd.arg("./bootstrap-vcpkg.sh");
+            cmd
+        };
         cmd.arg("-disableMetrics");
         cmd.current_dir(&vcpkg_root);
         run_command(cmd, verbose).context("failed to run vcpkg bootstrap")?;
