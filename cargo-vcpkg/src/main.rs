@@ -96,7 +96,7 @@ fn main() {
         }
     }
 }
-//use std::io::Write;
+
 fn build(opt: Opt) -> Result<(), anyhow::Error> {
     let start_time = SystemTime::now();
 
@@ -106,7 +106,6 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
 
     let mut args = std::env::args().skip_while(|val| !val.starts_with("--manifest-path"));
     let mut cmd = cargo_metadata::MetadataCommand::new();
-    // opt.manifest_path.map(|p| cmd.manifest_path(p));
 
     match args.next() {
         Some(p) if p == "--manifest-path" => {
