@@ -13,6 +13,8 @@ foo = { path = "../foo" }
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
 rev = "4c1db68"
+#branch = "master"
+#tag = "2020.04"
 
 [package.metadata.vcpkg.target]
 x86_64-apple-darwin = { install = ["sdl2"] }

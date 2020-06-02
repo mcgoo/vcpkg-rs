@@ -81,6 +81,12 @@ enum Subcommands {
     // Cargo(Vec<String>),
 }
 
+enum RevSelector {
+    Rev(String),
+    Tag(String),
+    Branch(String),
+}
+
 fn main() {
     // cargo passes us the "vcpkg" arg when it calls us. Drop it before
     // parsing the arg list so t doesn't end up the usage description
@@ -130,7 +136,7 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
 
     let mut git_url = None;
     let mut vcpkg_ports = Vec::new();
-    let mut rev_tag_branch: Option<String> = None;
+    let mut rev_tag_branch: Option<RevSelector> = None;
     let mut vcpkg_triplet = None;
     for p in &metadata.packages {
         if let Ok(v) = serde_json::from_value::<Metadata>(p.metadata.clone()) {
@@ -145,9 +151,9 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
                 // TODO: get the correct target
                 // TODO: make sure to pull if it's a branch
                 rev_tag_branch = match (&v.branch, &v.tag, &v.rev) {
-                    (Some(b), None, None) => Some(b.into()),
-                    (None, Some(t), None) => Some(t.into()),
-                    (None, None, Some(r)) => Some(r.into()),
+                    (Some(b), None, None) => Some(RevSelector::Branch(b.into())),
+                    (None, Some(t), None) => Some(RevSelector::Tag(t.into())),
+                    (None, None, Some(r)) => Some(RevSelector::Rev(r.into())),
                     _ => {
                         bail!("must specify one of branch,rev,tag for git source");
                     }
@@ -192,8 +198,15 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     vcpkg_root_file.push(".vcpkg-root");
     if !vcpkg_root_file.exists() {
         let git_url = git_url.context(format!(
-            "could not find a vcpkg installation and crate \
-        {} does not specify a git repository to clone from.",
+            "could not find a vcpkg installation and crate \n\
+        {} does not specify a git repository to clone from. \n\n\
+        Add a [package.metadata.vcpkg] section to the root crate's\n\
+        Cargo.toml, and add a 'git' key and one of the 'branch',\n\
+        'tag' or 'rev' keys to tell this program where to get\n\
+        the correct version of vcpkg from. For example:\n\n\
+        [package.metadata.vcpkg]\n\
+        git = \"https://github.com/microsoft/vcpkg\"\n\
+        branch = \"master\" ",
             root_crate
         ))?;
         print_tag("Cloning", &git_url);
@@ -229,19 +242,29 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
         file.write_all(b"# This file was created automatically by cargo-vcpkg\n")?;
     }
 
-    // otherwise, check that the rev is where we want it to be
-    // there needs to be some serious thought here because if we are on a branch
-    // does this mean we should fetch?
-
     // check out the required rev
     let rev_tag_branch = rev_tag_branch.unwrap();
-    print_tag("Checkout", &format!("rev/tag/branch {}", rev_tag_branch));
+    let (desc, rev_tag_branch, do_pull) = match rev_tag_branch {
+        RevSelector::Rev(r) => ("rev", r, false),
+        RevSelector::Tag(t) => ("tag", t, false), //?
+        RevSelector::Branch(b) => ("branch", b, true),
+    };
+    print_tag("Checkout", &format!("{} {}", desc, rev_tag_branch));
     let mut cmd = Command::new("git");
     cmd.arg("checkout");
-    cmd.arg(rev_tag_branch);
+    cmd.arg(&rev_tag_branch);
     cmd.current_dir(&vcpkg_root);
     run_command(cmd, verbose).context("failed to execute process")?;
 
+    // if it is a branch, run a git pull to move to the correct commit
+    if do_pull {
+        print_tag("Pulling", &format!("{} {}", desc, rev_tag_branch));
+        let mut cmd = Command::new("git");
+        cmd.arg("pull");
+        //cmd.arg(rev_tag_branch);
+        cmd.current_dir(&vcpkg_root);
+        run_command(cmd, verbose).context("failed to execute process")?;
+    }
     // try and run 'vcpkg update' and if it fails or gives the version warning, rebuild it
     let require_bootstrap = match vcpkg_command(&vcpkg_root, &vcpkg_triplet)
         .arg("update")
