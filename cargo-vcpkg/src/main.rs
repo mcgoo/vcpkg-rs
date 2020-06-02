@@ -47,7 +47,10 @@ struct Metadata {
 /// that are depended on by the top level crate being built.
 #[structopt(rename_all = "kebab-case")]
 struct Opt {
+    /// Display more information while building
     ///
+    /// This will display the output of git and
+    /// vcpkg operations.
     #[structopt(short, long)]
     verbose: bool,
 
@@ -59,7 +62,7 @@ struct Opt {
 
 #[derive(Debug, PartialEq, StructOpt)]
 enum Subcommands {
-    /// Build packages
+    /// Build packages, checking out the correct version
     ///
     /// This command will clone or update a vcpkg tree to the version specified
     /// in Cargo.toml and build the required packages.
