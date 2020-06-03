@@ -185,9 +185,8 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     // find the vcpkg root
     let vcpkg_root = find_vcpkg_root(&Config::default()).unwrap_or_else(|_| {
         let target_directory = metadata.target_directory.clone();
-        let mut vcpkg_root = target_directory.clone();
+        let mut vcpkg_root = target_directory;
         vcpkg_root.push("vcpkg");
-        vcpkg_root.to_path_buf();
         vcpkg_root
     });
     if verbose {
@@ -276,15 +275,10 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
                 println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
                 println!("{:?}", output.status);
             }
-            if output.status.success()
-                && !str::from_utf8(&output.stdout)
+            !output.status.success()
+                || str::from_utf8(&output.stdout)
                     .unwrap()
                     .contains("Warning: Different source is available for vcpkg")
-            {
-                false
-            } else {
-                true
-            }
         }
         Err(_) => true,
     };
@@ -324,9 +318,9 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     //     .template("    Building [{bar:40.cyan/blue}] {pos:>7}/{len:7} {msg}");
     // let bar = ProgressBar::new(10).with_style(style);
     for line in reader.lines().flat_map(Result::ok) {
-        parse_build_line(&line).map(|(pkg, triplet, _num, _tot)| {
+        if let Some((pkg, triplet, _num, _tot)) = parse_build_line(&line) {
             print_tag("Compiling", &format!("{} (triplet {})", pkg, triplet))
-        });
+        }
 
         if verbose {
             println!("{}", line);
@@ -405,7 +399,7 @@ fn parse_build_line(line: &str) -> Option<(String, String, u64, u64)> {
         .filter(|line| line.starts_with("Starting package "))
         .map(|line| line.trim_start_matches("Starting package ").to_string())?;
 
-    let progress_and_pkg_trp = line.splitn(2, ":").collect::<Vec<_>>();
+    let progress_and_pkg_trp = line.splitn(2, ':').collect::<Vec<_>>();
     if progress_and_pkg_trp.len() != 2 {
         return None;
     }
@@ -413,7 +407,7 @@ fn parse_build_line(line: &str) -> Option<(String, String, u64, u64)> {
     let pkg_with_triplet = progress_and_pkg_trp[1].trim();
 
     let (pkg, triplet) = match pkg_with_triplet
-        .rsplitn(2, ":")
+        .rsplitn(2, ':')
         .collect::<Vec<_>>()
         .as_slice()
     {
@@ -422,7 +416,7 @@ fn parse_build_line(line: &str) -> Option<(String, String, u64, u64)> {
     };
 
     let (cnt, tot) = match &progress_and_pkg_trp[0]
-        .splitn(2, "/")
+        .splitn(2, '/')
         .filter_map(|s| s.parse::<u64>().ok())
         .collect::<Vec<_>>()
         .as_slice()
