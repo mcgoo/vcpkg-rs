@@ -39,6 +39,14 @@ x86_64-unknown-linux-gnu = { install = ["sdl2"] }
 x86_64-pc-windows-msvc = { triplet = "x64-windows-static", install = ["sdl2"] }
 ```
 
+## Installation
+
+Install by running
+
+```
+cargo install cargo-vcpkg
+```
+
 ## License
 
 See LICENSE-APACHE, and LICENSE-MIT for details.
