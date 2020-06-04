@@ -9,8 +9,7 @@ This is a helper for finding libraries in a [Vcpkg](https://github.com/Microsoft
 Find the library named `foo` in a [Vcpkg](https://github.com/Microsoft/vcpkg) installation and emit cargo metadata to link it:
 
 ```rust
-extern crate vcpkg;
-
+// build.rs
 fn main() {
     vcpkg::find_package("foo").unwrap();
 }
