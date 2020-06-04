@@ -47,12 +47,12 @@ fn main() {
         cfg.cargo_metadata(false);
         cfg.copy_dlls(false);
         if let Some(linkage) = matches.value_of("linkage") {
-            match &linkage {
-                &"dll" => {
+            match linkage {
+                "dll" => {
                     remove_vars();
                     env::set_var("VCPKGRS_DYNAMIC", "1");
                 }
-                &"static" => {
+                "static" => {
                     remove_vars();
                     env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
                 }
