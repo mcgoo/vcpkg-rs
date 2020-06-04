@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     fs::File,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Cursor, Write},
     process::{Command, Output, Stdio},
     str,
     time::SystemTime,
@@ -284,21 +284,7 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     };
 
     if require_bootstrap {
-        print_tag("Compiling", "vcpkg");
-        let mut cmd = if cfg!(windows) {
-            let mut cmd = Command::new("cmd");
-            cmd.arg("/C");
-            cmd.arg("bootstrap-vcpkg.bat");
-            cmd
-        } else {
-            let mut cmd = Command::new("sh");
-            cmd.arg("-c");
-            cmd.arg("./bootstrap-vcpkg.sh");
-            cmd
-        };
-        cmd.arg("-disableMetrics");
-        cmd.current_dir(&vcpkg_root);
-        run_command(cmd, verbose).context("failed to run vcpkg bootstrap")?;
+        run_bootstrap(&vcpkg_root, verbose)?;
     }
 
     // TODO: upgrade anything that is installed
@@ -327,6 +313,7 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
         }
         // bar.set_length(tot);
         // bar.set_position(num);
+        //    Building [==============================================> ] 58/59
     }
     // grab anything that is left
     let output = output.wait_with_output()?;
@@ -374,9 +361,11 @@ fn run_command(mut cmd: Command, verbose: bool) -> Result<Output, anyhow::Error>
     }
     let output = cmd.output()?;
 
-    if !output.status.success() && !verbose {
-        println!("-- stdout --\n{}", String::from_utf8_lossy(&output.stdout));
-        println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
+    if !output.status.success() {
+        if !verbose {
+            println!("-- stdout --\n{}", String::from_utf8_lossy(&output.stdout));
+            println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
+        }
         bail!("failed");
     }
 
@@ -427,4 +416,88 @@ fn parse_build_line(line: &str) -> Option<(String, String, u64, u64)> {
 
     Some((pkg, triplet, cnt, tot))
 }
-//    Building [==============================================> ] 58/59
+
+fn run_bootstrap(vcpkg_root: &std::path::Path, verbose: bool) -> Result<(), anyhow::Error> {
+    print_tag("Compiling", "vcpkg");
+
+    if cfg!(windows) {
+        let mut cmd = Command::new("cmd");
+        cmd.arg("/C");
+        cmd.arg("bootstrap-vcpkg.bat");
+        cmd.arg("-disableMetrics");
+        cmd.current_dir(&vcpkg_root);
+        run_command(cmd, verbose).context("failed to run vcpkg bootstrap")?;
+    } else {
+        // if we are on a mac with clang 11, try it first. Fall back to the
+        // installation that requires gcc if this build fails
+        if cfg!(target_os = "macos") {
+            if let Some(version) = apple_clang_version() {
+                if version >= 11 {
+                    let mut cmd = Command::new("sh");
+                    cmd.arg("-c");
+                    cmd.arg("./bootstrap-vcpkg.sh -disableMetrics -allowAppleClang");
+                    cmd.current_dir(&vcpkg_root);
+                    if run_command(cmd, verbose).is_ok() {
+                        return Ok(());
+                    }
+                    println!(
+                        "note: building vcpkg with apple clang failed, falling \
+                    back to using another compiler."
+                    );
+                }
+            }
+        }
+
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c");
+        cmd.arg("./bootstrap-vcpkg.sh -disableMetrics");
+        cmd.current_dir(&vcpkg_root);
+        run_command(cmd, verbose).context("failed to run vcpkg bootstrap")?;
+    };
+
+    Ok(())
+}
+
+fn apple_clang_version() -> Option<u64> {
+    let output = Command::new("clang").arg("--version").output().ok()?;
+    let reader = Cursor::new(output.stdout);
+
+    reader
+        .lines()
+        .filter_map(Result::ok)
+        .filter_map(parse_apple_clang_version)
+        .next()
+}
+
+fn parse_apple_clang_version(line: String) -> Option<u64> {
+    Some(line)
+        .filter(|line| line.starts_with("Apple clang version "))
+        .map(|line| line.trim_start_matches("Apple clang version ").to_string())?
+        .splitn(2, '.')
+        .next()
+        .and_then(|x| x.parse::<u64>().ok())
+}
+
+#[test]
+fn test_parse_apple_clang_version() {
+    assert_eq!(
+        parse_apple_clang_version("Apple clang version 9.0.1".into()),
+        Some(9)
+    );
+    assert_eq!(
+        parse_apple_clang_version("Apple clang version 10.0.1".into()),
+        Some(10)
+    );
+    assert_eq!(
+        parse_apple_clang_version("Apple clang version 11.0.1".into()),
+        Some(11)
+    );
+    assert_eq!(
+        parse_apple_clang_version("Apple clang version 12.0.1".into()),
+        Some(12)
+    );
+    assert_eq!(
+        parse_apple_clang_version("Opple clong version 12.0.1".into()),
+        None
+    );
+}
