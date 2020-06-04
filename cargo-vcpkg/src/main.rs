@@ -318,9 +318,11 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     // grab anything that is left
     let output = output.wait_with_output()?;
 
-    if !output.status.success() && !verbose {
-        println!("-- stdout --\n{}", String::from_utf8_lossy(&output.stdout));
-        println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
+    if !output.status.success() {
+        if !verbose {
+            println!("-- stdout --\n{}", String::from_utf8_lossy(&output.stdout));
+            println!("-- stderr --\n{}", String::from_utf8_lossy(&output.stderr));
+        }
         bail!("failed");
     }
 
@@ -460,19 +462,16 @@ fn run_bootstrap(vcpkg_root: &std::path::Path, verbose: bool) -> Result<(), anyh
 
 fn apple_clang_version() -> Option<u64> {
     let output = Command::new("clang").arg("--version").output().ok()?;
-    let reader = Cursor::new(output.stdout);
-
-    reader
-        .lines()
-        .filter_map(Result::ok)
-        .filter_map(parse_apple_clang_version)
-        .next()
+    parse_apple_clang_version(&output.stdout)
 }
 
-fn parse_apple_clang_version(line: String) -> Option<u64> {
-    Some(line)
+fn parse_apple_clang_version(bytes: &[u8]) -> Option<u64> {
+    Cursor::new(bytes)
+        .lines()
+        .filter_map(Result::ok)
         .filter(|line| line.starts_with("Apple clang version "))
-        .map(|line| line.trim_start_matches("Apple clang version ").to_string())?
+        .map(|line| line.trim_start_matches("Apple clang version ").to_string())
+        .next()?
         .splitn(2, '.')
         .next()
         .and_then(|x| x.parse::<u64>().ok())
@@ -481,23 +480,23 @@ fn parse_apple_clang_version(line: String) -> Option<u64> {
 #[test]
 fn test_parse_apple_clang_version() {
     assert_eq!(
-        parse_apple_clang_version("Apple clang version 9.0.1".into()),
+        parse_apple_clang_version(b"la la la\nApple clang version 9.0.1"),
         Some(9)
     );
     assert_eq!(
-        parse_apple_clang_version("Apple clang version 10.0.1".into()),
+        parse_apple_clang_version(b"ho ho ho\nhe he he\nApple clang version 10.0.1"),
         Some(10)
     );
     assert_eq!(
-        parse_apple_clang_version("Apple clang version 11.0.1".into()),
+        parse_apple_clang_version(b"Apple clang version 11.0.1"),
         Some(11)
     );
     assert_eq!(
-        parse_apple_clang_version("Apple clang version 12.0.1".into()),
+        parse_apple_clang_version(b"Apple clang version 12.0.1"),
         Some(12)
     );
     assert_eq!(
-        parse_apple_clang_version("Opple clong version 12.0.1".into()),
+        parse_apple_clang_version(b"Opple clong version 12.0.1"),
         None
     );
 }
