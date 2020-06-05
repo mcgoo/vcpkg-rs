@@ -38,7 +38,7 @@ dependencies = [
  "serde_json 1.0.53 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "termcolor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "vcpkg 0.2.9",
+ "vcpkg 0.2.10",
 ]
 
 [[package]]
@@ -304,7 +304,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "vcpkg"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -315,7 +315,7 @@ name = "vcpkg_cli"
 version = "0.2.4"
 dependencies = [
  "clap 2.33.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "vcpkg 0.2.9",
+ "vcpkg 0.2.10",
 ]
 
 [[package]]

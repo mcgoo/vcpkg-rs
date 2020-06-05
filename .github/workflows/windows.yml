@@ -19,6 +19,10 @@ jobs:
             }
           - {
               target: "x86_64-pc-windows-msvc",
+              VCPKG_DEFAULT_TRIPLET: "x64-windows-static-md",
+            }
+          - {
+              target: "x86_64-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x64-windows",
               VCPKGRS_DYNAMIC: 1,
             }
@@ -26,6 +30,10 @@ jobs:
               target: "i686-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x86-windows-static",
               RUSTFLAGS: "-Ctarget-feature=+crt-static",
+            }
+          - {
+              target: "i686-pc-windows-msvc",
+              VCPKG_DEFAULT_TRIPLET: "x86-windows-static-md",
             }
           - {
               target: "i686-pc-windows-msvc",

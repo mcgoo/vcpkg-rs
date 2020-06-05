@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
+## [0.2.10] - 2020-06-10
+
+### Added
+
+- add support for "dynamic crt, static everything else" on Windows, using vcpkg triplet x64-windows-static-md.
+
 ## [0.2.9] - 2020-05-31
 
 ### Added

@@ -1,13 +1,9 @@
 //! A build dependency for Cargo libraries to find libraries in a
-//! [Vcpkg](https://github.com/microsoft/vcpkg) tree. From a Vcpkg package name
-//! this build helper will emit cargo metadata to link it and it's dependencies
-//! (excluding system libraries, which it cannot derive).
+//! [Vcpkg](https://github.com/microsoft/vcpkg) tree
 //!
-//! **Note:** On Windows you must set one of `RUSTFLAGS=-Ctarget-feature=+crt-static`
-//! or `VCPKGRS_DYNAMIC=1` in your environment or the vcpkg-rs helper
-//! will not find any libraries. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
-//! generate dynamically linked binaries, in which case you will have to arrange for
-//! dlls from your Vcpkg installation to be available in your path.
+//! From a Vcpkg package name
+//! this build helper will emit cargo metadata to link it and it's dependencies
+//! (excluding system libraries, which it does not determine).
 //!
 //! The simplest possible usage looks like this :-
 //!
@@ -26,16 +22,28 @@
 //! If the search was successful all appropriate Cargo metadata will be printed
 //! to stdout.
 //!
-//! The decision to choose static variants of libraries is driven by adding
-//! `RUSTFLAGS=-Ctarget-feature=+crt-static` to the environment. This requires
-//! at least Rust 1.19.
+//! ## Static vs. dynamic linking
+//! At this time, vcpkg itself only has a single triplet on macOS and Linux which builds
+//! static link versions of libraries, which works well with Rust.
+//! On Windows there are three
+//! configurations that are supported for 64-bit builds and another three for 32-bit.
+//! The default 64-bit configuration is `x64-windows-static-md` which is a
+//! [community supported](https://github.com/microsoft/vcpkg/blob/master/docs/users/triplets.md#community-triplets)
+//! configuration that is a good match for Rust - dynamically linking to the C runtime,
+//! and statically linking to the packages in vcpkg. Another option is to build a fully static
+//! binary using `RUSTFLAGS=-Ctarget-feature=+crt-static`. This will link to libraries built
+//! with vcpkg triplet `x64-windows-static`. For dynamic linking, set `VCPKGRS_DYNAMIC=1` in the
+//! environment. This will link to libraries built with vcpkg triplet `x64-windows`. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
+//! generate dynamically linked binaries, in which case you will have to arrange for
+//! dlls from your Vcpkg installation to be available in your path.
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
 //! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg installation. If
 //! it is not set, vcpkg will use the user-wide installation if one has been
-//! set up with `vcpkg integrate install`
+//! set up with `vcpkg integrate install`, and check the crate source and target
+//! to see if a vcpkg tree has been created by [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg).
 //!
 //! * `VCPKGRS_NO_FOO` - if set, vcpkg-rs will not attempt to find the
 //! library named `foo`.
@@ -81,6 +89,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+/// Configuration options for finding packages, setting up the tree and emitting metadata to cargo
 #[derive(Default)]
 pub struct Config {
     /// should the cargo metadata actually be emitted
@@ -95,7 +104,7 @@ pub struct Config {
     /// .dlls that must be be found for probing to be considered successful
     required_dlls: Vec<String>,
 
-    /// should DLLs be copies to OUT_DIR?
+    /// should DLLs be copied to OUT_DIR?
     copy_dlls: bool,
 
     /// override VCPKG_ROOT environment variable
@@ -111,7 +120,7 @@ pub struct Library {
     /// Paths to search at runtme to find DLLs
     pub dll_paths: Vec<PathBuf>,
 
-    /// Paths to search for
+    /// Paths to include files
     pub include_paths: Vec<PathBuf>,
 
     /// cargo: metadata lines
@@ -133,22 +142,11 @@ pub struct Library {
     pub ports: Vec<String>,
 }
 
-enum MSVCTarget {
-    X86Windows,
-    X64Windows,
-    X64Linux,
-    X64MacOS,
-}
-
-impl fmt::Display for MSVCTarget {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MSVCTarget::X86Windows => write!(f, "x86-windows"),
-            MSVCTarget::X64Windows => write!(f, "x64-windows"),
-            MSVCTarget::X64Linux => write!(f, "x64-linux"),
-            MSVCTarget::X64MacOS => write!(f, "x64-osx"),
-        }
-    }
+struct TargetTriplet {
+    triplet: String,
+    is_static: bool,
+    lib_suffix: String,
+    strip_lib_prefix: bool,
 }
 
 #[derive(Debug)] // need Display?
@@ -339,41 +337,29 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
     }
 }
 
-fn find_vcpkg_target(cfg: &Config, msvc_target: &MSVCTarget) -> Result<VcpkgTarget, Error> {
+fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<VcpkgTarget, Error> {
     let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
-
-    let (is_static, static_appendage, lib_suffix, strip_lib_prefix) = match msvc_target {
-        &MSVCTarget::X64Windows | &MSVCTarget::X86Windows => {
-            let is_static = env::var("CARGO_CFG_TARGET_FEATURE")
-                .unwrap_or(String::new()) // rustc 1.10
-                .contains("crt-static");
-            let static_appendage = if is_static { "-static" } else { "" };
-            (is_static, static_appendage, "lib", false)
-        }
-        _ => (true, "", "a", true),
-    };
 
     let mut base = vcpkg_root;
     base.push("installed");
     let status_path = base.join("vcpkg");
 
-    let vcpkg_triplet = format!("{}{}", msvc_target.to_string(), static_appendage);
-    base.push(&vcpkg_triplet);
+    base.push(&target_triplet.triplet);
 
     let lib_path = base.join("lib");
     let bin_path = base.join("bin");
     let include_path = base.join("include");
 
     Ok(VcpkgTarget {
-        vcpkg_triplet: vcpkg_triplet,
+        vcpkg_triplet: target_triplet.triplet.to_owned(),
         lib_path: lib_path,
         bin_path: bin_path,
         include_path: include_path,
-        is_static: is_static,
+        is_static: target_triplet.is_static,
         status_path: status_path,
-        lib_suffix: lib_suffix.to_owned(),
-        strip_lib_prefix: strip_lib_prefix,
+        lib_suffix: target_triplet.lib_suffix.to_owned(),
+        strip_lib_prefix: target_triplet.strip_lib_prefix,
     })
 }
 
@@ -634,35 +620,172 @@ impl Config {
             cargo_metadata: true,
             copy_dlls: true,
             ..Default::default()
-            // emit_includes: false,
-            // required_libs: Vec::new(),
         }
     }
 
-    /// Override the name of the library to look for if it differs from the package name.
+    /// Find the package `port_name` in a Vcpkg tree.
     ///
-    /// This may be called more than once if multiple libs are required.
-    /// All libs must be found for the probe to succeed. `.probe()` must
-    /// be run with a different configuration to look for libraries under one of several names.
-    /// `.libname("ssleay32")` will look for ssleay32.lib and also ssleay32.dll if
-    /// dynamic linking is selected.
-    pub fn lib_name(&mut self, lib_stem: &str) -> &mut Config {
-        self.required_libs.push(lib_stem.to_owned());
-        self.required_dlls.push(lib_stem.to_owned());
-        self
-    }
+    /// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
+    /// named, and any (non-system) libraries that they depend on.
+    ///
+    /// This will select the architecture and linkage based on environment
+    /// variables and build flags as described in the module docs, and any configuration
+    /// set on the builder.
+    pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
+        // determine the target type, bailing out if it is not some
+        // kind of msvc
+        let msvc_target = try!(msvc_target());
 
-    /// Override the name of the library to look for if it differs from the package name.
-    ///
-    /// This may be called more than once if multiple libs are required.
-    /// All libs must be found for the probe to succeed. `.probe()` must
-    /// be run with a different configuration to look for libraries under one of several names.
-    /// `.lib_names("libcurl_imp","curl")` will look for libcurl_imp.lib and also curl.dll if
-    /// dynamic linking is selected.
-    pub fn lib_names(&mut self, lib_stem: &str, dll_stem: &str) -> &mut Config {
-        self.required_libs.push(lib_stem.to_owned());
-        self.required_dlls.push(dll_stem.to_owned());
-        self
+        // bail out if requested to not try at all
+        if env::var_os("VCPKGRS_DISABLE").is_some() {
+            return Err(Error::DisabledByEnv("VCPKGRS_DISABLE".to_owned()));
+        }
+
+        // bail out if requested to not try at all (old)
+        if env::var_os("NO_VCPKG").is_some() {
+            return Err(Error::DisabledByEnv("NO_VCPKG".to_owned()));
+        }
+
+        // bail out if requested to skip this package
+        let abort_var_name = format!("VCPKGRS_NO_{}", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
+        // bail out if requested to skip this package (old)
+        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
+        if env::var_os(&abort_var_name).is_some() {
+            return Err(Error::DisabledByEnv(abort_var_name));
+        }
+
+        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
+        let mut required_port_order = Vec::new();
+
+        // if no overrides have been selected, then the Vcpkg port name
+        // is the the .lib name and the .dll name
+        if self.required_libs.is_empty() {
+            let ports = try!(load_ports(&vcpkg_target));
+
+            if ports.get(&port_name.to_owned()).is_none() {
+                return Err(Error::LibNotFound(format!(
+                    "package {} is not installed for vcpkg triplet {}",
+                    port_name.to_owned(),
+                    vcpkg_target.vcpkg_triplet
+                )));
+            }
+
+            // the complete set of ports required
+            let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
+            // working of ports that we need to include
+            //        let mut ports_to_scan: BTreeSet<String> = BTreeSet::new();
+            //        ports_to_scan.insert(port_name.to_owned());
+            let mut ports_to_scan = vec![port_name.to_owned()]; //: Vec<String> = BTreeSet::new();
+
+            while !ports_to_scan.is_empty() {
+                let port_name = ports_to_scan.pop().unwrap();
+
+                if required_ports.contains_key(&port_name) {
+                    continue;
+                }
+
+                if let Some(port) = ports.get(&port_name) {
+                    for dep in &port.deps {
+                        ports_to_scan.push(dep.clone());
+                    }
+                    required_ports.insert(port_name.clone(), (*port).clone());
+                    remove_item(&mut required_port_order, &port_name);
+                    required_port_order.push(port_name);
+                } else {
+                    // what?
+                }
+            }
+
+            // for port in ports {
+            //     println!("port {:?}", port);
+            // }
+            // println!("== Looking for port {}", port_name);
+            // for port in &required_port_order {
+            //     println!("ordered required port {:?}", port);
+            // }
+            // println!("=============================");
+            // for port in &required_ports {
+            //     println!("required port {:?}", port);
+            // }
+
+            // if no overrides have been selected, then the Vcpkg port name
+            // is the the .lib name and the .dll name
+            if self.required_libs.is_empty() {
+                for port_name in &required_port_order {
+                    let port = required_ports.get(port_name).unwrap();
+                    self.required_libs.extend(port.libs.iter().map(|s| {
+                        Path::new(&s)
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned()
+                    }));
+                    self.required_dlls
+                        .extend(port.dlls.iter().cloned().map(|s| {
+                            Path::new(&s)
+                                .file_stem()
+                                .unwrap()
+                                .to_string_lossy()
+                                .into_owned()
+                        }));
+                }
+            }
+        }
+        // require explicit opt-in before using dynamically linked
+        // variants, otherwise cargo install of various things will
+        // stop working if Vcpkg is installed.
+        if !vcpkg_target.is_static && !env::var_os("VCPKGRS_DYNAMIC").is_some() {
+            return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
+        }
+
+        let mut lib = Library::new(vcpkg_target.is_static);
+
+        if self.emit_includes {
+            lib.cargo_metadata.push(format!(
+                "cargo:include={}",
+                vcpkg_target.include_path.display()
+            ));
+        }
+        lib.include_paths.push(vcpkg_target.include_path.clone());
+
+        lib.cargo_metadata.push(format!(
+            "cargo:rustc-link-search=native={}",
+            vcpkg_target
+                .lib_path
+                .to_str()
+                .expect("failed to convert string type")
+        ));
+        lib.link_paths.push(vcpkg_target.lib_path.clone());
+        if !vcpkg_target.is_static {
+            lib.cargo_metadata.push(format!(
+                "cargo:rustc-link-search=native={}",
+                vcpkg_target
+                    .bin_path
+                    .to_str()
+                    .expect("failed to convert string type")
+            ));
+            // this path is dropped by recent versions of cargo hence the copies to OUT_DIR below
+            lib.dll_paths.push(vcpkg_target.bin_path.clone());
+        }
+
+        lib.ports = required_port_order;
+
+        try!(self.emit_libs(&mut lib, &vcpkg_target));
+
+        if self.copy_dlls {
+            try!(self.do_dll_copy(&mut lib));
+        }
+
+        if self.cargo_metadata {
+            for line in &lib.cargo_metadata {
+                println!("{}", line);
+            }
+        }
+        Ok(lib)
     }
 
     /// Define whether metadata should be emitted for cargo allowing it to
@@ -861,169 +984,30 @@ impl Config {
         Ok(())
     }
 
-    /// Find the package `port_name` in a Vcpkg tree.
+    /// Override the name of the library to look for if it differs from the package name.
     ///
-    /// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
-    /// named, and any (non-system) libraries that they depend on.
+    /// This may be called more than once if multiple libs are required.
+    /// All libs must be found for the probe to succeed. `.probe()` must
+    /// be run with a different configuration to look for libraries under one of several names.
+    /// `.libname("ssleay32")` will look for ssleay32.lib and also ssleay32.dll if
+    /// dynamic linking is selected.
+    pub fn lib_name(&mut self, lib_stem: &str) -> &mut Config {
+        self.required_libs.push(lib_stem.to_owned());
+        self.required_dlls.push(lib_stem.to_owned());
+        self
+    }
+
+    /// Override the name of the library to look for if it differs from the package name.
     ///
-    /// This will select the architecture and linkage based on environment
-    /// variables and build flags as described in the module docs, and any configuration
-    /// set on the builder.
-    pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
-        // determine the target type, bailing out if it is not some
-        // kind of msvc
-        let msvc_target = try!(msvc_target());
-
-        // bail out if requested to not try at all
-        if env::var_os("VCPKGRS_DISABLE").is_some() {
-            return Err(Error::DisabledByEnv("VCPKGRS_DISABLE".to_owned()));
-        }
-
-        // bail out if requested to not try at all (old)
-        if env::var_os("NO_VCPKG").is_some() {
-            return Err(Error::DisabledByEnv("NO_VCPKG".to_owned()));
-        }
-
-        // bail out if requested to skip this package
-        let abort_var_name = format!("VCPKGRS_NO_{}", envify(port_name));
-        if env::var_os(&abort_var_name).is_some() {
-            return Err(Error::DisabledByEnv(abort_var_name));
-        }
-
-        // bail out if requested to skip this package (old)
-        let abort_var_name = format!("{}_NO_VCPKG", envify(port_name));
-        if env::var_os(&abort_var_name).is_some() {
-            return Err(Error::DisabledByEnv(abort_var_name));
-        }
-
-        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
-        let mut required_port_order = Vec::new();
-
-        // if no overrides have been selected, then the Vcpkg port name
-        // is the the .lib name and the .dll name
-        if self.required_libs.is_empty() {
-            let ports = try!(load_ports(&vcpkg_target));
-
-            if ports.get(&port_name.to_owned()).is_none() {
-                return Err(Error::LibNotFound(format!(
-                    "{} is not installed for vcpkg triplet {}",
-                    port_name.to_owned(),
-                    vcpkg_target.vcpkg_triplet
-                )));
-            }
-
-            // the complete set of ports required
-            let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
-            // working of ports that we need to include
-            //        let mut ports_to_scan: BTreeSet<String> = BTreeSet::new();
-            //        ports_to_scan.insert(port_name.to_owned());
-            let mut ports_to_scan = vec![port_name.to_owned()]; //: Vec<String> = BTreeSet::new();
-
-            while !ports_to_scan.is_empty() {
-                let port_name = ports_to_scan.pop().unwrap();
-
-                if required_ports.contains_key(&port_name) {
-                    continue;
-                }
-
-                if let Some(port) = ports.get(&port_name) {
-                    for dep in &port.deps {
-                        ports_to_scan.push(dep.clone());
-                    }
-                    required_ports.insert(port_name.clone(), (*port).clone());
-                    remove_item(&mut required_port_order, &port_name);
-                    required_port_order.push(port_name);
-                } else {
-                    // what?
-                }
-            }
-
-            // for port in ports {
-            //     println!("port {:?}", port);
-            // }
-            // println!("== Looking for port {}", port_name);
-            // for port in &required_port_order {
-            //     println!("ordered required port {:?}", port);
-            // }
-            // println!("=============================");
-            // for port in &required_ports {
-            //     println!("required port {:?}", port);
-            // }
-
-            // if no overrides have been selected, then the Vcpkg port name
-            // is the the .lib name and the .dll name
-            if self.required_libs.is_empty() {
-                for port_name in &required_port_order {
-                    let port = required_ports.get(port_name).unwrap();
-                    self.required_libs.extend(port.libs.iter().map(|s| {
-                        Path::new(&s)
-                            .file_stem()
-                            .unwrap()
-                            .to_string_lossy()
-                            .into_owned()
-                    }));
-                    self.required_dlls
-                        .extend(port.dlls.iter().cloned().map(|s| {
-                            Path::new(&s)
-                                .file_stem()
-                                .unwrap()
-                                .to_string_lossy()
-                                .into_owned()
-                        }));
-                }
-            }
-        }
-        // require explicit opt-in before using dynamically linked
-        // variants, otherwise cargo install of various things will
-        // stop working if Vcpkg is installed.
-        if !vcpkg_target.is_static && !env::var_os("VCPKGRS_DYNAMIC").is_some() {
-            return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
-        }
-
-        let mut lib = Library::new(vcpkg_target.is_static);
-
-        if self.emit_includes {
-            lib.cargo_metadata.push(format!(
-                "cargo:include={}",
-                vcpkg_target.include_path.display()
-            ));
-        }
-        lib.include_paths.push(vcpkg_target.include_path.clone());
-
-        lib.cargo_metadata.push(format!(
-            "cargo:rustc-link-search=native={}",
-            vcpkg_target
-                .lib_path
-                .to_str()
-                .expect("failed to convert string type")
-        ));
-        lib.link_paths.push(vcpkg_target.lib_path.clone());
-        if !vcpkg_target.is_static {
-            lib.cargo_metadata.push(format!(
-                "cargo:rustc-link-search=native={}",
-                vcpkg_target
-                    .bin_path
-                    .to_str()
-                    .expect("failed to convert string type")
-            ));
-            // this path is dropped by recent versions of cargo hence the copies to OUT_DIR below
-            lib.dll_paths.push(vcpkg_target.bin_path.clone());
-        }
-
-        lib.ports = required_port_order;
-
-        try!(self.emit_libs(&mut lib, &vcpkg_target));
-
-        if self.copy_dlls {
-            try!(self.do_dll_copy(&mut lib));
-        }
-
-        if self.cargo_metadata {
-            for line in &lib.cargo_metadata {
-                println!("{}", line);
-            }
-        }
-        Ok(lib)
+    /// This may be called more than once if multiple libs are required.
+    /// All libs must be found for the probe to succeed. `.probe()` must
+    /// be run with a different configuration to look for libraries under one of several names.
+    /// `.lib_names("libcurl_imp","curl")` will look for libcurl_imp.lib and also curl.dll if
+    /// dynamic linking is selected.
+    pub fn lib_names(&mut self, lib_stem: &str, dll_stem: &str) -> &mut Config {
+        self.required_libs.push(lib_stem.to_owned());
+        self.required_dlls.push(dll_stem.to_owned());
+        self
     }
 }
 
@@ -1057,19 +1041,75 @@ fn envify(name: &str) -> String {
         .collect()
 }
 
-fn msvc_target() -> Result<MSVCTarget, Error> {
+fn msvc_target() -> Result<TargetTriplet, Error> {
+    let is_definitely_dynamic = env::var("VCPKGRS_DYNAMIC").is_ok();
     let target = env::var("TARGET").unwrap_or(String::new());
+    let is_static = env::var("CARGO_CFG_TARGET_FEATURE")
+        .unwrap_or(String::new()) // rustc 1.10
+        .contains("crt-static");
     if target == "x86_64-apple-darwin" {
-        Ok(MSVCTarget::X64MacOS)
+        Ok(TargetTriplet {
+            triplet: "x64-osx".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if target == "x86_64-unknown-linux-gnu" {
-        Ok(MSVCTarget::X64Linux)
+        Ok(TargetTriplet {
+            triplet: "x64-linux".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
-        Ok(MSVCTarget::X64Windows)
+        if is_static {
+            Ok(TargetTriplet {
+                triplet: "x64-windows-static".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else if is_definitely_dynamic {
+            Ok(TargetTriplet {
+                triplet: "x64-windows".into(),
+                is_static: false,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else {
+            Ok(TargetTriplet {
+                triplet: "x64-windows-static-md".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        }
     } else {
         // everything else is x86
-        Ok(MSVCTarget::X86Windows)
+        if is_static {
+            Ok(TargetTriplet {
+                triplet: "x86-windows-static".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else if is_definitely_dynamic {
+            Ok(TargetTriplet {
+                triplet: "x86-windows".into(),
+                is_static: false,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else {
+            Ok(TargetTriplet {
+                triplet: "x86-windows-static-md".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        }
     }
 }
 
@@ -1131,19 +1171,19 @@ mod tests {
 
     // these tests are good but are leaning on a real vcpkg installation
 
-    #[test]
-    fn default_build_refuses_dynamic() {
-        let _g = LOCK.lock();
-        clean_env();
-        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
-        env::set_var("TARGET", "x86_64-pc-windows-msvc");
-        println!("Result is {:?}", ::find_package("libmysql"));
-        assert!(match ::find_package("libmysql") {
-            Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
-            _ => false,
-        });
-        clean_env();
-    }
+    // #[test]
+    // fn default_build_refuses_dynamic() {
+    //     let _g = LOCK.lock();
+    //     clean_env();
+    //     env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
+    //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
+    //     println!("Result is {:?}", ::find_package("libmysql"));
+    //     assert!(match ::find_package("libmysql") {
+    //         Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
+    //         _ => false,
+    //     });
+    //     clean_env();
+    // }
 
     #[test]
     fn static_build_finds_lib() {
