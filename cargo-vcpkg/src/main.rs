@@ -19,8 +19,9 @@ struct Target {
     triplet: Option<String>,
     // this install key for a specific target overrides the main entry
     // so a the target can opt out of installing packages
-    // #[serde(default = "Vec::new")]
-    install: Option<Vec<String>>,
+    #[serde(alias = "install")]
+    dependencies: Option<Vec<String>>,
+    dev_dependencies: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,7 +34,9 @@ struct Vcpkg {
     git: Option<String>,
     tag: Option<String>,
     #[serde(default = "Vec::new")]
-    install: Vec<String>,
+    #[serde(alias = "install")]
+    dependencies: Vec<String>,
+    dev_dependencies: Option<Vec<String>>,
 }
 #[derive(Debug, Deserialize)]
 struct Metadata {
@@ -161,19 +164,22 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
             }
 
             // if there is specific configuration for the target and it has
-            // an install key, use that rather than the general install key
+            // a dependencies key, use that rather than the general dependencies key
             match v.target.get(&target_triple) {
                 Some(target) => {
-                    if target.install.is_some() {
-                        vcpkg_ports.extend_from_slice(&target.install.as_ref().unwrap().as_slice());
+                    if target.dependencies.is_some() {
+                        vcpkg_ports
+                            .extend_from_slice(&target.dependencies.as_ref().unwrap().as_slice());
+                    } else {
+                        vcpkg_ports.extend_from_slice(&v.dependencies.as_slice());
                     }
-                    if is_root_crate {
+                    if is_root_crate && target.triplet.is_some() {
                         vcpkg_triplet = target.triplet.clone();
                     }
                 }
                 _ => {
-                    // not found or install is empty
-                    vcpkg_ports.extend_from_slice(&v.install.as_slice());
+                    // not found or dependencies is empty
+                    vcpkg_ports.extend_from_slice(&v.dependencies.as_slice());
                 }
             }
         }
