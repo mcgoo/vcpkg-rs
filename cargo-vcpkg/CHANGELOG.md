@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
-## [unreleased] - 2020-06-10
+## [0.1.4] - 2020-06-10
+
+### Added
+
+- Added 'dev-dependencies' key in [package.metadata.vcpkg] to allow installing
+  additional packages for development and testing without requiring the end user to
+  build those packages.
 
 ### Changed
 

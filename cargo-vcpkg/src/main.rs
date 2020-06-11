@@ -14,28 +14,30 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use vcpkg::{find_vcpkg_root, Config};
 
 // settings for a specific Rust target
+#[serde(rename_all = "kebab-case")]
 #[derive(Debug, Deserialize)]
 struct Target {
     triplet: Option<String>,
-    // this install key for a specific target overrides the main entry
+    // this dependencies key for a specific target overrides the main entry
     // so a the target can opt out of installing packages
     #[serde(alias = "install")]
     dependencies: Option<Vec<String>>,
     dev_dependencies: Option<Vec<String>>,
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Debug, Deserialize)]
 struct Vcpkg {
-    vcpkg_root: Option<String>,
+    //  vcpkg_root: Option<String>,
     #[serde(default = "BTreeMap::new")]
     target: BTreeMap<String, Target>,
     branch: Option<String>,
     rev: Option<String>,
     git: Option<String>,
     tag: Option<String>,
-    #[serde(default = "Vec::new")]
+
     #[serde(alias = "install")]
-    dependencies: Vec<String>,
+    dependencies: Option<Vec<String>>,
     dev_dependencies: Option<Vec<String>>,
 }
 #[derive(Debug, Deserialize)]
@@ -92,7 +94,7 @@ enum RevSelector {
 
 fn main() {
     // cargo passes us the "vcpkg" arg when it calls us. Drop it before
-    // parsing the arg list so t doesn't end up the usage description
+    // parsing the arg list so it doesn't end up the usage description
     let mut args = std::env::args().collect::<Vec<_>>();
     if args.len() >= 2 && args[1] == "vcpkg" {
         args.remove(1);
@@ -130,60 +132,8 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     }
     let metadata = cmd.exec()?;
 
-    let resolve = metadata.resolve.as_ref().unwrap();
-
-    let root_crate = resolve
-        .root
-        .as_ref()
-        .context("cannot run on a virtual manifest, this command requires running against an actual package in this workspace.")?;
-
-    let mut git_url = None;
-    let mut vcpkg_ports = Vec::new();
-    let mut rev_tag_branch: Option<RevSelector> = None;
-    let mut vcpkg_triplet = None;
-    for p in &metadata.packages {
-        if let Ok(v) = serde_json::from_value::<Metadata>(p.metadata.clone()) {
-            let v = v.vcpkg;
-            let is_root_crate = p.id == *root_crate;
-
-            // only use git url and rev from the root crate
-            if v.git.is_some() && is_root_crate {
-                git_url = v.git;
-
-                // TODO: check the target and use it's package set if required
-                // TODO: get the correct target
-                // TODO: make sure to pull if it's a branch
-                rev_tag_branch = match (&v.branch, &v.tag, &v.rev) {
-                    (Some(b), None, None) => Some(RevSelector::Branch(b.into())),
-                    (None, Some(t), None) => Some(RevSelector::Tag(t.into())),
-                    (None, None, Some(r)) => Some(RevSelector::Rev(r.into())),
-                    _ => {
-                        bail!("must specify one of branch,rev,tag for git source");
-                    }
-                };
-            }
-
-            // if there is specific configuration for the target and it has
-            // a dependencies key, use that rather than the general dependencies key
-            match v.target.get(&target_triple) {
-                Some(target) => {
-                    if target.dependencies.is_some() {
-                        vcpkg_ports
-                            .extend_from_slice(&target.dependencies.as_ref().unwrap().as_slice());
-                    } else {
-                        vcpkg_ports.extend_from_slice(&v.dependencies.as_slice());
-                    }
-                    if is_root_crate && target.triplet.is_some() {
-                        vcpkg_triplet = target.triplet.clone();
-                    }
-                }
-                _ => {
-                    // not found or dependencies is empty
-                    vcpkg_ports.extend_from_slice(&v.dependencies.as_slice());
-                }
-            }
-        }
-    }
+    let (git_url, vcpkg_ports, rev_tag_branch, vcpkg_triplet, root_crate) =
+        process_metadata(&metadata, &target_triple)?;
 
     // should we modify the existing?
     // let mut allow_updates = true;
@@ -337,6 +287,97 @@ fn build(opt: Opt) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn process_metadata(
+    metadata: &cargo_metadata::Metadata,
+    target_triple: &str,
+) -> Result<
+    (
+        Option<String>,
+        Vec<String>,
+        Option<RevSelector>,
+        Option<String>,
+        cargo_metadata::PackageId,
+    ),
+    anyhow::Error,
+> {
+    let resolve = metadata.resolve.as_ref().unwrap();
+    let root_crate = resolve
+        .root
+        .as_ref()
+        .context("cannot run on a virtual manifest, this command requires running against an actual package in this workspace.")?;
+
+    let mut git_url = None;
+    let mut vcpkg_ports = Vec::new();
+    let mut rev_tag_branch: Option<RevSelector> = None;
+    let mut vcpkg_triplet = None;
+    for p in &metadata.packages {
+        // dbg!(&p);
+        if let Ok(v) = serde_json::from_value::<Metadata>(p.metadata.clone()) {
+            // dbg!(&v);
+            let v = v.vcpkg;
+            let is_root_crate = p.id == *root_crate;
+
+            // only use git url and rev from the root crate
+            if v.git.is_some() && is_root_crate {
+                git_url = v.git;
+
+                // TODO: check the target and use it's package set if required
+                // TODO: get the correct target
+                // TODO: make sure to pull if it's a branch
+                rev_tag_branch = match (&v.branch, &v.tag, &v.rev) {
+                    (Some(b), None, None) => Some(RevSelector::Branch(b.into())),
+                    (None, Some(t), None) => Some(RevSelector::Tag(t.into())),
+                    (None, None, Some(r)) => Some(RevSelector::Rev(r.into())),
+                    _ => {
+                        bail!("must specify one of branch,rev,tag for git source");
+                    }
+                };
+            }
+
+            // if there is specific configuration for the target and it has
+            // a dependencies key, use that rather than the general dependencies key
+            match v.target.get(target_triple) {
+                Some(target) => {
+                    if target.dependencies.is_some() {
+                        vcpkg_ports
+                            .extend_from_slice(&target.dependencies.as_ref().unwrap().as_slice());
+                    } else {
+                        if v.dependencies.is_some() {
+                            vcpkg_ports
+                                .extend_from_slice(&v.dependencies.as_ref().unwrap().as_slice());
+                        }
+                    }
+                    if is_root_crate && target.triplet.is_some() {
+                        vcpkg_triplet = target.triplet.clone();
+                    }
+                    if is_root_crate && target.dev_dependencies.is_some() {
+                        vcpkg_ports.extend_from_slice(
+                            &target.dev_dependencies.as_ref().unwrap().as_slice(),
+                        );
+                    }
+                }
+                _ => {
+                    // not found or dependencies is empty
+                    if v.dependencies.is_some() {
+                        vcpkg_ports.extend_from_slice(&v.dependencies.as_ref().unwrap().as_slice());
+                    }
+                    if is_root_crate && v.dev_dependencies.is_some() {
+                        vcpkg_ports
+                            .extend_from_slice(&v.dev_dependencies.as_ref().unwrap().as_slice());
+                    }
+                }
+            }
+        }
+    }
+    Ok((
+        git_url,
+        vcpkg_ports,
+        rev_tag_branch,
+        vcpkg_triplet,
+        root_crate.clone(),
+    ))
+}
+
 fn target_triple() -> String {
     let mut args = std::env::args().skip_while(|val| !val.starts_with("--target"));
     match args.next() {
@@ -483,26 +524,372 @@ fn parse_apple_clang_version(bytes: &[u8]) -> Option<u64> {
         .and_then(|x| x.parse::<u64>().ok())
 }
 
-#[test]
-fn test_parse_apple_clang_version() {
-    assert_eq!(
-        parse_apple_clang_version(b"la la la\nApple clang version 9.0.1"),
-        Some(9)
-    );
-    assert_eq!(
-        parse_apple_clang_version(b"ho ho ho\nhe he he\nApple clang version 10.0.1"),
-        Some(10)
-    );
-    assert_eq!(
-        parse_apple_clang_version(b"Apple clang version 11.0.1"),
-        Some(11)
-    );
-    assert_eq!(
-        parse_apple_clang_version(b"Apple clang version 12.0.1"),
-        Some(12)
-    );
-    assert_eq!(
-        parse_apple_clang_version(b"Opple clong version 12.0.1"),
-        None
-    );
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::{
+        env, fs,
+        path::{Path, PathBuf},
+    };
+    // Cadged from https://github.com/rust-lang/cargo/tree/master/crates/cargo-test-support
+    #[derive(Default)]
+    pub(super) struct ProjectBuilder {
+        root: PathBuf,
+        //  files:
+    }
+    pub(super) fn project() -> ProjectBuilder {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+
+        println!("new id {}", id);
+
+        let mut root = {
+            let mut path = env::current_exe().unwrap();
+            //            dbg!(&path);
+            path.pop(); // chop off exe name
+            path.pop(); // chop off deps
+            path.pop(); // chop off 'debug'
+
+            // if path.file_name().and_then(|s| s.to_str()) != Some("target") {
+            //     path.pop();
+            // }
+
+            path.push("cv_int");
+            path.mkdir_p();
+            path
+        };
+
+        root.push(&format!("test_{}", id));
+        root.rm_rf();
+        root.mkdir_p();
+
+        ProjectBuilder { root }
+    }
+
+    impl ProjectBuilder {
+        // pub(super) fn file(&mut self, name: &str, contents: &str) -> &mut Self {
+        //     self
+        // }
+
+        pub(super) fn metadata(
+            &mut self,
+            manifest_path: &str,
+        ) -> Result<cargo_metadata::Metadata, anyhow::Error> {
+            let mut cmd = cargo_metadata::MetadataCommand::new();
+
+            let mut path = self.root.clone();
+            path.push(manifest_path);
+            cmd.manifest_path(path);
+
+            Ok(cmd.exec()?)
+        }
+
+        /// Adds a file to the project.
+        pub(super) fn file<B: AsRef<Path>>(self, path: B, body: &str) -> Self {
+            let path = self.root.clone().join(path);
+            let dirname = path.parent().unwrap();
+            dirname.mkdir_p();
+            fs::write(&path, &body)
+                .unwrap_or_else(|e| panic!("could not create file {}: {}", path.display(), e));
+
+            self
+        }
+    }
+
+    pub trait TestPathExt {
+        fn rm_rf(&self);
+        fn mkdir_p(&self);
+    }
+
+    impl TestPathExt for Path {
+        fn rm_rf(&self) {
+            if self.exists() {
+                if let Err(e) = remove_dir_all::remove_dir_all(self) {
+                    panic!("failed to remove {:?}: {:?}", self, e)
+                }
+            }
+        }
+
+        fn mkdir_p(&self) {
+            fs::create_dir_all(self)
+                .unwrap_or_else(|e| panic!("failed to mkdir_p {}: {}", self.display(), e))
+        }
+    }
+    pub fn basic_manifest(name: &str, version: &str) -> String {
+        format!(
+            r#"
+            [package]
+            name = "{}"
+            version = "{}"
+            authors = []
+        "#,
+            name, version
+        )
+    }
+    pub fn extended_manifest(name: &str, version: &str, tail: &str) -> String {
+        format!("{}\n\n{}", &basic_manifest(name, version), tail)
+    }
+
+    #[test]
+    fn test_parse_apple_clang_version() {
+        assert_eq!(
+            parse_apple_clang_version(b"la la la\nApple clang version 9.0.1"),
+            Some(9)
+        );
+        assert_eq!(
+            parse_apple_clang_version(b"ho ho ho\nhe he he\nApple clang version 10.0.1"),
+            Some(10)
+        );
+        assert_eq!(
+            parse_apple_clang_version(b"Apple clang version 11.0.1"),
+            Some(11)
+        );
+        assert_eq!(
+            parse_apple_clang_version(b"Apple clang version 12.0.1"),
+            Some(12)
+        );
+        assert_eq!(
+            parse_apple_clang_version(b"Opple clong version 12.0.1"),
+            None
+        );
+    }
+
+    #[test]
+    fn run_on_workspace_fails() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.manifest.vcpkg]
+                        dependencies = ["z85"]
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.manifest.vcpkg]
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("Cargo.toml")
+            .unwrap();
+        let err = process_metadata(&metadata, "").err().unwrap();
+        assert!(err.to_string().contains("cannot run on a virtual manifest"));
+    }
+
+    #[test]
+    fn install_in_root_crate() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.metadata.vcpkg]
+                        install = ["z85"]
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.metadata.vcpkg]
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("top/Cargo.toml")
+            .unwrap();
+
+        let (_, vcpkg_ports, _, _, _) = process_metadata(&metadata, "").unwrap();
+
+        assert_eq!(vcpkg_ports, vec!["z85"]);
+    }
+    #[test]
+    fn same_dependencies_but_specified_triplet() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.metadata.vcpkg]
+                        install = ["z85"]
+                        [package.metadata.vcpkg.target]
+                        x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" } 
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.metadata.vcpkg]
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("top/Cargo.toml")
+            .unwrap();
+
+        let (_, vcpkg_ports, _, vcpkg_triplet, _) =
+            process_metadata(&metadata, "x86_64-pc-windows-msvc").unwrap();
+
+        assert_eq!(vcpkg_ports, vec!["z85"]);
+        assert_eq!(vcpkg_triplet, Some("x64-windows-static-md".to_owned()));
+    }
+
+    #[test]
+    fn specified_triplet_requires_no_dependencies() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.metadata.vcpkg]
+                        install = ["z85"]
+                        [package.metadata.vcpkg.target]
+                        x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md", dependencies = [] } 
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.metadata.vcpkg]
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("top/Cargo.toml")
+            .unwrap();
+
+        let (_, vcpkg_ports, _, vcpkg_triplet, _) =
+            process_metadata(&metadata, "x86_64-pc-windows-msvc").unwrap();
+
+        assert_eq!(vcpkg_ports, Vec::<String>::new());
+        assert_eq!(vcpkg_triplet, Some("x64-windows-static-md".to_owned()));
+    }
+
+    #[test]
+    fn combine_deps_from_all_crates() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.metadata.vcpkg]
+                        dependencies = ["a"]
+                        dev-dependencies = ["d"]
+                        [package.metadata.vcpkg.target]
+                        x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md", dev-dependencies = ["b", "c"] } 
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.metadata.vcpkg]
+                dependencies = ["m"]
+                dev-dependencies = ["n"]
+                [package.metadata.vcpkg.target]
+                x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md", dependencies = ["o"], dev-dependencies = ["p"] } 
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("top/Cargo.toml")
+            .unwrap();
+
+        let (_, mut vcpkg_ports, _, vcpkg_triplet, _) =
+            process_metadata(&metadata, "x86_64-pc-windows-msvc").unwrap();
+        vcpkg_ports.sort();
+        assert_eq!(vcpkg_ports, vec!["a", "b", "c", "o"]);
+        assert_eq!(vcpkg_triplet, Some("x64-windows-static-md".to_owned()));
+
+        let (_, mut vcpkg_ports, _, _, _) = process_metadata(&metadata, "").unwrap();
+        vcpkg_ports.sort();
+        assert_eq!(vcpkg_ports, vec!["a", "d", "m"]);
+    }
 }

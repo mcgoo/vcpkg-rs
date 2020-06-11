@@ -1,6 +1,6 @@
 [package]
 name = "cargo-vcpkg"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -12,7 +12,10 @@ A cargo subcommand to build a vcpkg tree from metadata entries in Cargo.toml for
 a top level crate and the crates that it depends on.
 """
 keywords = ["build-dependencies", "windows", "macos", "linux"]
-categories = ["development-tools::build-utils"]
+categories = ["development-tools::cargo-plugins"]
+
+[dev-dependencies]
+remove_dir_all = "0.5"
 
 [dependencies]
 anyhow = "1.0.31"
