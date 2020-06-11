@@ -10,7 +10,7 @@ This command `cargo vcpkg` will create a vcpkg tree and install the packages spe
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
 rev = "4c1db68"
-install = ["pkg1", "pkg2"]
+dependencies = ["pkg1", "pkg2"]
 ```
 
 ```
@@ -32,11 +32,27 @@ It is also possible to install different sets of packages per target, and overri
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
 rev = "4c1db68"
+dependencies = ["sdl2"]
 
 [package.metadata.vcpkg.target]
-x86_64-apple-darwin = { install = ["sdl2"] }
-x86_64-unknown-linux-gnu = { install = ["sdl2"] }
-x86_64-pc-windows-msvc = { triplet = "x64-windows-static", install = ["sdl2"] }
+x86_64-apple-darwin = { dependencies = ["sdl2", "sdl2-gfx" ] }
+x86_64-unknown-linux-gnu = { dependencies = ["sdl2", "opencv"] }
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static", dependencies = ["sdl2", "zeromq"] }
+```
+
+## Development dependencies
+
+Setting the `dev-dependencies` key allows building libraries that are required by binaries in this crate. Only the packages in the `dependencies` key will be installed if `cargo vcpkg` is run on a crate that depends on this crate.
+
+```toml
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "4c1db68"
+dependencies = ["sdl2"]
+dev-dependencies = ["sdl2-image"]
+
+[package.metadata.vcpkg.target]
+x86_64-apple-darwin = { dev-dependencies = ["sdl2-gfx" ] }
 ```
 
 ## Installation
