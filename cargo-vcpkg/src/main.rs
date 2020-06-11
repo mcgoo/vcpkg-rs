@@ -307,7 +307,7 @@ fn process_metadata(
         .context("cannot run on a virtual manifest, this command requires running against an actual package in this workspace.")?;
 
     let mut git_url = None;
-    let mut vcpkg_ports = Vec::new();
+    let mut vcpkg_ports = Vec::<String>::new();
     let mut rev_tag_branch: Option<RevSelector> = None;
     let mut vcpkg_triplet = None;
     for p in &metadata.packages {
@@ -338,22 +338,21 @@ fn process_metadata(
             // a dependencies key, use that rather than the general dependencies key
             match v.target.get(target_triple) {
                 Some(target) => {
-                    if target.dependencies.is_some() {
-                        vcpkg_ports
-                            .extend_from_slice(&target.dependencies.as_ref().unwrap().as_slice());
-                    } else {
-                        if v.dependencies.is_some() {
-                            vcpkg_ports
-                                .extend_from_slice(&v.dependencies.as_ref().unwrap().as_slice());
-                        }
+                    let deps = target.dependencies.as_ref().or(v.dependencies.as_ref());
+                    if deps.is_some() {
+                        vcpkg_ports.extend_from_slice(deps.unwrap().as_slice());
                     }
                     if is_root_crate && target.triplet.is_some() {
                         vcpkg_triplet = target.triplet.clone();
                     }
-                    if is_root_crate && target.dev_dependencies.is_some() {
-                        vcpkg_ports.extend_from_slice(
-                            &target.dev_dependencies.as_ref().unwrap().as_slice(),
-                        );
+                    if is_root_crate {
+                        let dev_deps = target
+                            .dev_dependencies
+                            .as_ref()
+                            .or(v.dev_dependencies.as_ref());
+                        if dev_deps.is_some() {
+                            vcpkg_ports.extend_from_slice(dev_deps.unwrap().as_slice());
+                        }
                     }
                 }
                 _ => {
@@ -785,6 +784,55 @@ mod test {
             process_metadata(&metadata, "x86_64-pc-windows-msvc").unwrap();
 
         assert_eq!(vcpkg_ports, vec!["z85"]);
+        assert_eq!(vcpkg_triplet, Some("x64-windows-static-md".to_owned()));
+    }
+
+    #[test]
+    fn same_dev_dependencies_but_specified_triplet() {
+        let metadata = test::project()
+            .file(
+                "Cargo.toml",
+                r#"
+                    [workspace]
+                    members = ["top", "dep"]
+                "#,
+            )
+            .file(
+                "top/Cargo.toml",
+                &extended_manifest(
+                    "top",
+                    "0.1.0",
+                    r#"
+                        [dependencies]
+                        dep = { path = "../dep" }
+                        [package.metadata.vcpkg]
+                        dependencies = ["a"]
+                        dev-dependencies = ["b"]
+                        [package.metadata.vcpkg.target]
+                        x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" } 
+                    "#,
+                ),
+            )
+            .file("top/src/main.rs", "")
+            .file(
+                "dep/Cargo.toml",
+                &extended_manifest(
+                    "dep",
+                    "0.1.0",
+                    r#"
+                [lib]
+                [package.metadata.vcpkg]
+            "#,
+                ),
+            )
+            .file("dep/src/lib.rs", "")
+            .metadata("top/Cargo.toml")
+            .unwrap();
+
+        let (_, mut vcpkg_ports, _, vcpkg_triplet, _) =
+            process_metadata(&metadata, "x86_64-pc-windows-msvc").unwrap();
+        vcpkg_ports.sort();
+        assert_eq!(vcpkg_ports, vec!["a", "b"]);
         assert_eq!(vcpkg_triplet, Some("x64-windows-static-md".to_owned()));
     }
 

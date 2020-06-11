@@ -1,6 +1,6 @@
 [package]
 name = "cargo-vcpkg"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
