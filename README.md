@@ -15,7 +15,7 @@ fn main() {
 }
 ```
 
-See the crate [documentation](https://docs.rs/vcpkg) for more information.
+See the crate [documentation](https://docs.rs/vcpkg) for more information. See [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg) for a convenient way of creating a vcpkg installation.
 
 ## License
 
