@@ -109,6 +109,8 @@ pub struct Config {
 
     /// override VCPKG_ROOT environment variable
     vcpkg_root: Option<PathBuf>,
+
+    target: Option<TargetTriplet>,
 }
 
 /// Details of a package that was found
@@ -142,11 +144,33 @@ pub struct Library {
     pub ports: Vec<String>,
 }
 
-struct TargetTriplet {
+#[derive(Clone)]
+pub struct TargetTriplet {
     triplet: String,
     is_static: bool,
     lib_suffix: String,
     strip_lib_prefix: bool,
+}
+
+impl<S: AsRef<str>> From<S> for TargetTriplet {
+    fn from(triplet: S) -> TargetTriplet {
+        let triplet = triplet.as_ref();
+        if triplet.contains("windows") {
+            TargetTriplet {
+                triplet: triplet.into(),
+                is_static: triplet.contains("-static"),
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            }
+        } else {
+            TargetTriplet {
+                triplet: triplet.into(),
+                is_static: true,
+                lib_suffix: "a".into(),
+                strip_lib_prefix: true,
+            }
+        }
+    }
 }
 
 #[derive(Debug)] // need Display?
@@ -623,6 +647,15 @@ impl Config {
         }
     }
 
+    fn get_target_triplet(&mut self) -> Result<TargetTriplet, Error> {
+        if self.target.is_none() {
+            let target = try!(msvc_target());
+            self.target = Some(target);
+        }
+
+        Ok(self.target.as_ref().unwrap().clone())
+    }
+
     /// Find the package `port_name` in a Vcpkg tree.
     ///
     /// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
@@ -634,7 +667,7 @@ impl Config {
     pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(msvc_target());
+        let msvc_target = try!(self.get_target_triplet());
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -815,6 +848,13 @@ impl Config {
         self
     }
 
+    /// Specify target triplet. When triplet is not specified, inferred triplet from rust target is used.
+    pub fn target_triplet<I: Into<TargetTriplet>>(&mut self, triplet: I) -> &mut Config {
+        self.target = Some(triplet.into());
+
+        self
+    }
+
     /// Find the library `port_name` in a Vcpkg tree.
     ///
     /// This will use all configuration previously set to select the
@@ -824,7 +864,7 @@ impl Config {
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(msvc_target());
+        let msvc_target = try!(self.get_target_triplet());
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -1340,6 +1380,29 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn custom_target_triplet() {
+        let _g = LOCK.lock();
+
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "aarch64-apple-ios");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let harfbuzz = ::find_package("harfbuzz");
+        println!("Result with inference is {:?}", &harfbuzz);
+        assert!(harfbuzz.is_err());
+        let harfbuzz = ::Config::new()
+            .target_triplet("arm64-ios")
+            .find_package("harfbuzz");
+        println!("Result with specifying target triplet is {:?}", &harfbuzz);
+        assert!(harfbuzz.is_ok());
+        clean_env();
+    }
+
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
     //     clean_env();
