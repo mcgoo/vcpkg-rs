@@ -2,7 +2,7 @@
 
 [Changelog](https://github.com/mcgoo/vcpkg-rs/blob/master/cargo-vcpkg/CHANGELOG.md)
 
-This command `cargo vcpkg` will create a vcpkg tree and install the packages specified in `Cargo.toml` files in the crate being built and crates it depends on.
+This command `cargo vcpkg` will create a [vcpkg](https://github.com/microsoft/vcpkg) tree and install the packages specified in `Cargo.toml` files in the crate being built and crates it depends on. Crates that use the [vcpkg crate](https://crates.io/crates/vcpkg) will be able to find libraries automatically.
 
 ## Example
 
