@@ -78,8 +78,9 @@ jobs:
           git clone https://github.com/Microsoft/vcpkg.git vcp
           vcp\bootstrap-vcpkg.bat
       - name: Set env
+        shell: bash
         run: |
-          echo "::set-env name=VCPKG_ROOT::${{ github.workspace }}\vcp"
+          echo "VCPKG_ROOT=${{ github.workspace }}\vcp" >> $GITHUB_ENV
       - name: Run integration tests
         env:
           RUST_BACKTRACE: 1
