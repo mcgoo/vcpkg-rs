@@ -1054,6 +1054,13 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
         })
+    } else if target == "aarch64-apple-darwin" {
+        Ok(TargetTriplet {
+            triplet: "arm64-osx".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if target == "x86_64-unknown-linux-gnu" {
         Ok(TargetTriplet {
             triplet: "x64-linux".into(),
