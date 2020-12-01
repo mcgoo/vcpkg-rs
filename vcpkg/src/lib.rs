@@ -649,7 +649,11 @@ impl Config {
 
     fn get_target_triplet(&mut self) -> Result<TargetTriplet, Error> {
         if self.target.is_none() {
-            let target = try!(msvc_target());
+            let target = if let Ok(triplet_str) = env::var("VCPKGRS_TRIPLET") {
+                triplet_str.into()
+            } else {
+                try!(msvc_target())
+            };
             self.target = Some(target);
         }
 
@@ -1403,6 +1407,28 @@ mod tests {
         clean_env();
     }
 
+    #[test]
+    fn custom_target_triplet_by_env() {
+        let _g = LOCK.lock();
+
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "aarch64-apple-ios");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let harfbuzz = ::find_package("harfbuzz");
+        println!("Result with inference is {:?}", &harfbuzz);
+        assert!(harfbuzz.is_err());
+
+        env::set_var("VCPKGRS_TRIPLET", "arm64-ios");
+        let harfbuzz = ::find_package("harfbuzz");
+        println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
+        assert!(harfbuzz.is_ok());
+        clean_env();
+    }
+
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
     //     clean_env();
@@ -1443,6 +1469,7 @@ mod tests {
         env::remove_var("CARGO_CFG_TARGET_FEATURE");
         env::remove_var("VCPKGRS_DISABLE");
         env::remove_var("VCPKGRS_NO_LIBMYSQL");
+        env::remove_var("VCPKGRS_TRIPLET");
     }
 
     // path to a to vcpkg installation to test against
