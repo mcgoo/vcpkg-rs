@@ -142,6 +142,9 @@ pub struct Library {
 
     /// ports that are providing the libraries to link to, in port link order
     pub ports: Vec<String>,
+
+    /// the vcpkg triplet that has been selected
+    pub vcpkg_triplet: String,
 }
 
 #[derive(Clone)]
@@ -779,7 +782,7 @@ impl Config {
             return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
 
-        let mut lib = Library::new(vcpkg_target.is_static);
+        let mut lib = Library::new(vcpkg_target.is_static, &vcpkg_target.vcpkg_triplet);
 
         if self.emit_includes {
             lib.cargo_metadata.push(format!(
@@ -908,7 +911,7 @@ impl Config {
             return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
 
-        let mut lib = Library::new(vcpkg_target.is_static);
+        let mut lib = Library::new(vcpkg_target.is_static, &vcpkg_target.vcpkg_triplet);
 
         if self.emit_includes {
             lib.cargo_metadata.push(format!(
@@ -1063,7 +1066,7 @@ fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
 }
 
 impl Library {
-    fn new(is_static: bool) -> Library {
+    fn new(is_static: bool, vcpkg_triplet: &str) -> Library {
         Library {
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
@@ -1074,6 +1077,7 @@ impl Library {
             found_libs: Vec::new(),
             found_names: Vec::new(),
             ports: Vec::new(),
+            vcpkg_triplet: vcpkg_triplet.to_string(),
         }
     }
 }
@@ -1111,7 +1115,14 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
             is_static: true,
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
-        })
+        }) 
+    } else if target == "aarch64-apple-ios" {
+            Ok(TargetTriplet {
+                triplet: "arm64-ios".into(),
+                is_static: true,
+                lib_suffix: "a".into(),
+                strip_lib_prefix: true,
+            })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
@@ -1386,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_target_triplet() {
+    fn custom_target_triplet_in_config() {
         let _g = LOCK.lock();
 
         clean_env();
@@ -1395,15 +1406,16 @@ mod tests {
         env::set_var("VCPKGRS_DYNAMIC", "1");
         let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
-
-        let harfbuzz = ::find_package("harfbuzz");
-        println!("Result with inference is {:?}", &harfbuzz);
-        assert!(harfbuzz.is_err());
+  
         let harfbuzz = ::Config::new()
-            .target_triplet("arm64-ios")
+            // For the sake of testing, force this build to try to 
+            // link to the arm64-osx libraries in preference to the
+            // default of arm64-ios. 
+            .target_triplet("x64-osx") 
             .find_package("harfbuzz");
         println!("Result with specifying target triplet is {:?}", &harfbuzz);
-        assert!(harfbuzz.is_ok());
+        let harfbuzz = harfbuzz.unwrap();
+        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");        
         clean_env();
     }
 
