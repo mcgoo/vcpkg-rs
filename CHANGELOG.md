@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
-## [unreleased] - 2020-11-29
+## [Unreleased] - 2020-12-10
 
 ### Added
 
+- @perlmint added support for using custom vcpkg triplets. Thanks!
 - add support for M1/aarch64-apple-darwin/arm64-osx
 
 ## [0.2.10] - 2020-06-10
@@ -27,7 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- @fungos added the ability to specify the location of a vcpkg tree in code.
+- @fungos added the ability to specify the location of a vcpkg tree in code. Thanks!
 
 ## [0.2.7] - 2019-06-29
 

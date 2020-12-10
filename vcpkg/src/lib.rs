@@ -8,12 +8,14 @@
 //! The simplest possible usage looks like this :-
 //!
 //! ```rust,no_run
+//! // build.rs
 //! vcpkg::find_package("libssh2").unwrap();
 //! ```
 //!
 //! The cargo metadata that is emitted can be changed like this :-
 //!
 //! ```rust,no_run
+//! // build.rs
 //! vcpkg::Config::new()
 //!     .emit_includes(true)
 //!     .find_package("zlib").unwrap();
@@ -22,20 +24,29 @@
 //! If the search was successful all appropriate Cargo metadata will be printed
 //! to stdout.
 //!
-//! ## Static vs. dynamic linking
-//! At this time, vcpkg itself only has a single triplet on macOS and Linux which builds
-//! static link versions of libraries, which works well with Rust.
+//! # Static vs. dynamic linking
+//! ## Linux and Mac
+//! At this time, vcpkg has a single triplet on macOS and Linux, which builds
+//! static link versions of libraries. This triplet works well with Rust. It is also possible
+//! to select a custom triplet using the `VCPKGRS_TRIPLET` environment variable.
+//! ## Windows
 //! On Windows there are three
 //! configurations that are supported for 64-bit builds and another three for 32-bit.
 //! The default 64-bit configuration is `x64-windows-static-md` which is a
 //! [community supported](https://github.com/microsoft/vcpkg/blob/master/docs/users/triplets.md#community-triplets)
 //! configuration that is a good match for Rust - dynamically linking to the C runtime,
-//! and statically linking to the packages in vcpkg. Another option is to build a fully static
+//! and statically linking to the packages in vcpkg.
+//!
+//! Another option is to build a fully static
 //! binary using `RUSTFLAGS=-Ctarget-feature=+crt-static`. This will link to libraries built
-//! with vcpkg triplet `x64-windows-static`. For dynamic linking, set `VCPKGRS_DYNAMIC=1` in the
+//! with vcpkg triplet `x64-windows-static`.
+//!
+//! For dynamic linking, set `VCPKGRS_DYNAMIC=1` in the
 //! environment. This will link to libraries built with vcpkg triplet `x64-windows`. If `VCPKGRS_DYNAMIC` is set, `cargo install` will
 //! generate dynamically linked binaries, in which case you will have to arrange for
 //! dlls from your Vcpkg installation to be available in your path.
+//!
+//! # Environment variables
 //!
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
@@ -45,14 +56,22 @@
 //! set up with `vcpkg integrate install`, and check the crate source and target
 //! to see if a vcpkg tree has been created by [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg).
 //!
+//! * `VCPKGRS_TRIPLET` - Use this to override vcpkg-rs' default triplet selection with your own.
+//! This is how to select a custom vcpkg triplet.
+//!
 //! * `VCPKGRS_NO_FOO` - if set, vcpkg-rs will not attempt to find the
 //! library named `foo`.
 //!
 //! * `VCPKGRS_DISABLE` - if set, vcpkg-rs will not attempt to find any libraries.
 //!
 //! * `VCPKGRS_DYNAMIC` - if set, vcpkg-rs will link to DLL builds of ports.
-//!
-//! There is a companion crate `vcpkg_cli` that allows testing of environment
+//! # Related tools
+//! ## cargo vcpkg
+//! [`cargo vcpkg`](https://crates.io/crates/cargo-vcpkg) can fetch and build a vcpkg installation of
+//! required packages from scratch. It merges package requirements specified in the `Cargo.toml` of 
+//! crates in the dependency tree.  
+//! ## vcpkg_cli
+//! There is also a rudimentary companion crate, `vcpkg_cli` that allows testing of environment
 //! and flag combinations.
 //!
 //! ```Batchfile
@@ -109,6 +128,8 @@ pub struct Config {
 
     /// override VCPKG_ROOT environment variable
     vcpkg_root: Option<PathBuf>,
+
+    target: Option<TargetTriplet>,
 }
 
 /// Details of a package that was found
@@ -140,13 +161,38 @@ pub struct Library {
 
     /// ports that are providing the libraries to link to, in port link order
     pub ports: Vec<String>,
+
+    /// the vcpkg triplet that has been selected
+    pub vcpkg_triplet: String,
 }
 
+#[derive(Clone)]
 struct TargetTriplet {
     triplet: String,
     is_static: bool,
     lib_suffix: String,
     strip_lib_prefix: bool,
+}
+
+impl<S: AsRef<str>> From<S> for TargetTriplet {
+    fn from(triplet: S) -> TargetTriplet {
+        let triplet = triplet.as_ref();
+        if triplet.contains("windows") {
+            TargetTriplet {
+                triplet: triplet.into(),
+                is_static: triplet.contains("-static"),
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            }
+        } else {
+            TargetTriplet {
+                triplet: triplet.into(),
+                is_static: true,
+                lib_suffix: "a".into(),
+                strip_lib_prefix: true,
+            }
+        }
+    }
 }
 
 #[derive(Debug)] // need Display?
@@ -623,6 +669,19 @@ impl Config {
         }
     }
 
+    fn get_target_triplet(&mut self) -> Result<TargetTriplet, Error> {
+        if self.target.is_none() {
+            let target = if let Ok(triplet_str) = env::var("VCPKGRS_TRIPLET") {
+                triplet_str.into()
+            } else {
+                try!(msvc_target())
+            };
+            self.target = Some(target);
+        }
+
+        Ok(self.target.as_ref().unwrap().clone())
+    }
+
     /// Find the package `port_name` in a Vcpkg tree.
     ///
     /// Emits cargo metadata to link to libraries provided by the Vcpkg package/port
@@ -634,7 +693,7 @@ impl Config {
     pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(msvc_target());
+        let msvc_target = try!(self.get_target_triplet());
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -742,7 +801,7 @@ impl Config {
             return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
 
-        let mut lib = Library::new(vcpkg_target.is_static);
+        let mut lib = Library::new(vcpkg_target.is_static, &vcpkg_target.vcpkg_triplet);
 
         if self.emit_includes {
             lib.cargo_metadata.push(format!(
@@ -815,6 +874,17 @@ impl Config {
         self
     }
 
+    /// Specify target triplet. When triplet is not specified, inferred triplet from rust target is used.
+    ///
+    /// Specifying a triplet using `target_triplet` will override the default triplet for this crate. This
+    /// cannot change the choice of triplet made by other crates, so a safer choice will be to set 
+    /// `VCPKGRS_TRIPLET` in the environment which will allow all crates to use a consistent set of
+    /// external dependencies.
+    pub fn target_triplet<S: AsRef<str>>(&mut self, triplet: S) -> &mut Config {
+        self.target = Some(triplet.into());
+        self
+    }
+
     /// Find the library `port_name` in a Vcpkg tree.
     ///
     /// This will use all configuration previously set to select the
@@ -824,7 +894,7 @@ impl Config {
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(msvc_target());
+        let msvc_target = try!(self.get_target_triplet());
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -864,7 +934,7 @@ impl Config {
             return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
 
-        let mut lib = Library::new(vcpkg_target.is_static);
+        let mut lib = Library::new(vcpkg_target.is_static, &vcpkg_target.vcpkg_triplet);
 
         if self.emit_includes {
             lib.cargo_metadata.push(format!(
@@ -986,6 +1056,8 @@ impl Config {
 
     /// Override the name of the library to look for if it differs from the package name.
     ///
+    /// It should not be necessary to use `lib_name` anymore. Calling `find_package` with a package name
+    /// will result in the correct library names.
     /// This may be called more than once if multiple libs are required.
     /// All libs must be found for the probe to succeed. `.probe()` must
     /// be run with a different configuration to look for libraries under one of several names.
@@ -999,6 +1071,8 @@ impl Config {
 
     /// Override the name of the library to look for if it differs from the package name.
     ///
+    /// It should not be necessary to use `lib_names` anymore. Calling `find_package` with a package name
+    /// will result in the correct library names.
     /// This may be called more than once if multiple libs are required.
     /// All libs must be found for the probe to succeed. `.probe()` must
     /// be run with a different configuration to look for libraries under one of several names.
@@ -1019,7 +1093,7 @@ fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
 }
 
 impl Library {
-    fn new(is_static: bool) -> Library {
+    fn new(is_static: bool, vcpkg_triplet: &str) -> Library {
         Library {
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
@@ -1030,6 +1104,7 @@ impl Library {
             found_libs: Vec::new(),
             found_names: Vec::new(),
             ports: Vec::new(),
+            vcpkg_triplet: vcpkg_triplet.to_string(),
         }
     }
 }
@@ -1067,7 +1142,14 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
             is_static: true,
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
-        })
+        }) 
+    } else if target == "aarch64-apple-ios" {
+            Ok(TargetTriplet {
+                triplet: "arm64-ios".into(),
+                is_static: true,
+                lib_suffix: "a".into(),
+                strip_lib_prefix: true,
+            })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
@@ -1340,6 +1422,74 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn custom_target_triplet_in_config() {
+        let _g = LOCK.lock();
+
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "aarch64-apple-ios");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+  
+        let harfbuzz = ::Config::new()
+            // For the sake of testing, force this build to try to 
+            // link to the arm64-osx libraries in preference to the
+            // default of arm64-ios. 
+            .target_triplet("x64-osx") 
+            .find_package("harfbuzz");
+        println!("Result with specifying target triplet is {:?}", &harfbuzz);
+        let harfbuzz = harfbuzz.unwrap();
+        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");        
+        clean_env();
+    }
+
+    #[test]
+    fn custom_target_triplet_by_env_no_default() {
+        let _g = LOCK.lock();
+
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "aarch64-apple-doesnotexist");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let harfbuzz = ::find_package("harfbuzz");
+        println!("Result with inference is {:?}", &harfbuzz);
+        assert!(harfbuzz.is_err());
+
+        env::set_var("VCPKGRS_TRIPLET", "x64-osx");
+        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
+        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
+        clean_env();
+    }
+
+    #[test]
+    fn custom_target_triplet_by_env_with_default() {
+        let _g = LOCK.lock();
+
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "aarch64-apple-ios");
+        env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        println!("Result with inference is {:?}", &harfbuzz);
+        assert_eq!(harfbuzz.vcpkg_triplet, "arm64-ios");
+
+        env::set_var("VCPKGRS_TRIPLET", "x64-osx");
+        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
+        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
+        clean_env();
+    } 
+    
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
     //     clean_env();
@@ -1380,6 +1530,7 @@ mod tests {
         env::remove_var("CARGO_CFG_TARGET_FEATURE");
         env::remove_var("VCPKGRS_DISABLE");
         env::remove_var("VCPKGRS_NO_LIBMYSQL");
+        env::remove_var("VCPKGRS_TRIPLET");
     }
 
     // path to a to vcpkg installation to test against

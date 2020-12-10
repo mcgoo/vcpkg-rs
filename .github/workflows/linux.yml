@@ -21,6 +21,8 @@ jobs:
           git clone https://github.com/Microsoft/vcpkg.git vcp
           vcp/bootstrap-vcpkg.sh
       - name: Run integration tests
-        run: tests/run.sh
+        run: |
+          tests/run.sh
+          tests/vcpkgrs_target.sh
       - name: Run cargo-vcpkg integration tests
         run: wstest/run.sh
