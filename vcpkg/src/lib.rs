@@ -517,36 +517,58 @@ impl PcFiles {
         Ok(PcFiles { files })
     }
     /// Use the .pc files as a hint to the library sort order.
-    fn fix_ordering(&self, port_name: &str, libs: &Vec<String>) -> Vec<String> {
+    fn fix_ordering(&self, port_name: &str, mut libs: Vec<String>) -> Vec<String> {
         // Overall heuristic here is, for each library given as input, identity which PcFile
         // declared it. Then, looking at that PcFile, check its Requires (deps), and if that
         // pc file is in our set, check if its libraries are in our set of libs.  If so, move it to
         // the end to ensure it gets linked afterwards.
-        let mut required_lib_order: Vec<String> = Vec::new();
-        for lib in libs {
-            required_lib_order.push(lib.to_owned());
-            if let Some(pc_file) = self.locate_pc_file_by_lib(lib) {
-                // Consider its requirements:
-                for dep in &pc_file.deps {
-                    // Only consider pkgconfig dependencies we know about.
-                    let dep_pc_file = match self.files.get(dep) {
-                        None => continue,
-                        Some(pc_file) => pc_file,
-                    };
-                    // If any of these libs are already in the list, push them to the end.
-                    // dep_pc_file.libs
-                    for dep_lib in &dep_pc_file.libs {
-                        if let Some(removed) = remove_item(&mut required_lib_order, dep_lib) {
-                            required_lib_order.push(removed);
+
+        // We may need to do this a few times to properly handle the case where A depends on B
+        // depend on C and libraries were originally sorted C, B, A.  Avoid recursion so we don't
+        // have to detect potential cycles.
+        let mut tries_left = 3;
+        loop {
+            let mut required_lib_order: Vec<String> = Vec::new();
+            for lib in &libs {
+                required_lib_order.push(lib.to_owned());
+                if let Some(pc_file) = self.locate_pc_file_by_lib(lib) {
+                    // Consider its requirements:
+                    for dep in &pc_file.deps {
+                        // Only consider pkgconfig dependencies we know about.
+                        let dep_pc_file = match self.files.get(dep) {
+                            None => continue,
+                            Some(pc_file) => pc_file,
+                        };
+                        // If any of these libs are already in the list, push them to the end.
+                        // dep_pc_file.libs
+                        for dep_lib in &dep_pc_file.libs {
+                            if let Some(removed) = remove_item(&mut required_lib_order, dep_lib) {
+                                required_lib_order.push(removed);
+                            }
                         }
                     }
                 }
             }
+            // We should always end up with the same number of libraries, only their order should
+            // change.
+            assert_eq!(libs.len(), required_lib_order.len());
+            // Termination:
+            if required_lib_order == libs {
+                // Nothing changed, we're done here.
+                return libs;
+            } else {
+                // Only try a few times.
+                if tries_left <= 0 {
+                    println!("cargo:warning=vcpkg gave up trying to resolve pkg-config ordering.");
+                    return libs;
+                } else {
+                    libs = required_lib_order;
+                    tries_left = tries_left - 1;
+                    continue;
+                }
+            }
         }
-        // We should always end up with the same number of libraries, only their order should
-        // change.
-        assert_eq!(libs.len(), required_lib_order.len());
-        required_lib_order
+        // unreachable
     }
     /// Locate which PcFile contains this library, if any.
     fn locate_pc_file_by_lib(&self, lib: &str) -> Option<&PcFile> {
@@ -630,7 +652,7 @@ fn load_port_manifest(
     // Try loading the pc files, if they are present. Not all ports have pkgconfig.
     if let Ok(pc_files) = PcFiles::load_pkgconfig_dir(vcpkg_target, &pkg_config_prefix) {
         // Use the .pc file data to potentially sort the libs to the correct order.
-        libs = pc_files.fix_ordering(port, &libs);
+        libs = pc_files.fix_ordering(port, libs);
     }
 
     Ok((dlls, libs))
