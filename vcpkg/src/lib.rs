@@ -68,7 +68,7 @@
 //! # Related tools
 //! ## cargo vcpkg
 //! [`cargo vcpkg`](https://crates.io/crates/cargo-vcpkg) can fetch and build a vcpkg installation of
-//! required packages from scratch. It merges package requirements specified in the `Cargo.toml` of 
+//! required packages from scratch. It merges package requirements specified in the `Cargo.toml` of
 //! crates in the dependency tree.  
 //! ## vcpkg_cli
 //! There is also a rudimentary companion crate, `vcpkg_cli` that allows testing of environment
@@ -387,7 +387,7 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
 
-    let mut base = vcpkg_root;
+    let mut base = vcpkg_root.clone();
     base.push("installed");
     let status_path = base.join("vcpkg");
 
@@ -396,6 +396,7 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let lib_path = base.join("lib");
     let bin_path = base.join("bin");
     let include_path = base.join("include");
+    let packages_path = vcpkg_root.join("packages");
 
     Ok(VcpkgTarget {
         vcpkg_triplet: target_triplet.triplet.to_owned(),
@@ -404,9 +405,158 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
         include_path: include_path,
         is_static: target_triplet.is_static,
         status_path: status_path,
+        packages_path: packages_path,
         lib_suffix: target_triplet.lib_suffix.to_owned(),
         strip_lib_prefix: target_triplet.strip_lib_prefix,
     })
+}
+
+#[derive(Debug)]
+struct PcFile {
+    /// The pkg-config name of this library.
+    id: String,
+    libs: Vec<String>,
+    deps: Vec<String>,
+}
+impl PcFile {
+    fn parse_pc_file(vcpkg_target: &VcpkgTarget, path: &Path) -> Result<PcFile, Error> {
+        // Extract the pkg-config name.
+        let id = try!(path
+            .file_stem()
+            .ok_or_else(|| Error::VcpkgInstallation(format!(
+                "pkg-config file {} has bogus name",
+                path.to_string_lossy()
+            ))))
+        .to_string_lossy();
+        let mut libs = Vec::new();
+        let mut deps = Vec::new();
+        // Read through the file and gather what we want.
+        for line in try!(
+            std::fs::read_to_string(path).map_err(|e| Error::VcpkgInstallation(format!(
+                "Couldn't read {}",
+                path.to_string_lossy()
+            )))
+        )
+        .lines()
+        {
+            // We could collect alot of stuff here, but we only care about Requires and Libs for the moment.
+            if line.starts_with("Requires:") {
+                let requires_args = line.split(":").skip(1).next().unwrap_or("").split(",");
+                for mut dep in requires_args {
+                    // Drop any versioning requirements, we only care about library order and rely upon
+                    // port dependencies to resolve versioning.
+                    if let Some(inequality) = dep.find(|c| c == '=' || c == '<' || c == '>') {
+                        dep = dep.split_at(inequality).0;
+                    }
+                    dep = dep.trim();
+                    // Sometimes Requires: lines don't have commas, so split again.
+                    deps.extend(dep.split_whitespace().map(|s| s.to_owned()));
+                }
+            } else if line.starts_with("Libs:") {
+                let lib_flags = line
+                    .split(":")
+                    .skip(1)
+                    .next()
+                    .unwrap_or("")
+                    .split_whitespace();
+                for lib_flag in lib_flags {
+                    if lib_flag.starts_with("-l") {
+                        // reconstruct the library name.
+                        let lib = format!(
+                            "{}{}.{}",
+                            if vcpkg_target.strip_lib_prefix {
+                                "lib"
+                            } else {
+                                ""
+                            },
+                            lib_flag.strip_prefix("-l").unwrap(),
+                            vcpkg_target.lib_suffix
+                        );
+                        libs.push(lib);
+                    }
+                }
+            }
+        }
+
+        Ok(PcFile {
+            id: id.to_string(),
+            libs: libs,
+            deps: deps,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct PcFiles {
+    files: BTreeMap<String, PcFile>,
+}
+impl PcFiles {
+    fn load_pkgconfig_dir(vcpkg_target: &VcpkgTarget, path: &PathBuf) -> Result<PcFiles, Error> {
+        let mut files = BTreeMap::new();
+        for dir_entry in try!(path.read_dir().map_err(|e| {
+            Error::VcpkgInstallation(format!(
+                "Missing pkgconfig directory {}: {}",
+                path.to_string_lossy(),
+                e
+            ))
+        })) {
+            let dir_entry = try!(dir_entry.map_err(|e| {
+                Error::VcpkgInstallation(format!(
+                    "Troubling reading pkgconfig dir {}: {}",
+                    path.to_string_lossy(),
+                    e
+                ))
+            }));
+            // Only look at .pc files.
+            if dir_entry.path().extension() != Some(OsStr::new("pc")) {
+                continue;
+            }
+            let pc_file = try!(PcFile::parse_pc_file(vcpkg_target, &dir_entry.path()));
+            files.insert(pc_file.id.to_owned(), pc_file);
+        }
+        Ok(PcFiles { files })
+    }
+    /// Use the .pc files as a hint to the library sort order.
+    fn fix_ordering(&self, port_name: &str, libs: &Vec<String>) -> Vec<String> {
+        // Overall heuristic here is, for each library given as input, identity which PcFile
+        // declared it. Then, looking at that PcFile, check its Requires (deps), and if that
+        // pc file is in our set, check if its libraries are in our set of libs.  If so, move it to
+        // the end to ensure it gets linked afterwards.
+        let mut required_lib_order: Vec<String> = Vec::new();
+        for lib in libs {
+            required_lib_order.push(lib.to_owned());
+            if let Some(pc_file) = self.locate_pc_file_by_lib(lib) {
+                // Consider its requirements:
+                for dep in &pc_file.deps {
+                    // Only consider pkgconfig dependencies we know about.
+                    let dep_pc_file = match self.files.get(dep) {
+                        None => continue,
+                        Some(pc_file) => pc_file,
+                    };
+                    // If any of these libs are already in the list, push them to the end.
+                    // dep_pc_file.libs
+                    for dep_lib in &dep_pc_file.libs {
+                        if let Some(removed) = remove_item(&mut required_lib_order, dep_lib) {
+                            required_lib_order.push(removed);
+                        }
+                    }
+                }
+            }
+        }
+        // We should always end up with the same number of libraries, only their order should
+        // change.
+        assert_eq!(libs.len(), required_lib_order.len());
+        required_lib_order
+    }
+    /// Locate which PcFile contains this library, if any.
+    fn locate_pc_file_by_lib(&self, lib: &str) -> Option<&PcFile> {
+        for (id, pc_file) in &self.files {
+            if pc_file.libs.contains(&lib.to_owned()) {
+                return Some(pc_file);
+            }
+        }
+        None
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -469,6 +619,18 @@ fn load_port_manifest(
                 }
             }
         }
+    }
+
+    // Load .pc files for hints about intra-port library ordering.
+    let pkg_config_prefix = vcpkg_target
+        .packages_path
+        .join(format!("{}_{}", port, vcpkg_target.vcpkg_triplet))
+        .join("lib")
+        .join("pkgconfig");
+    // Try loading the pc files, if they are present. Not all ports have pkgconfig.
+    if let Ok(pc_files) = PcFiles::load_pkgconfig_dir(vcpkg_target, &pkg_config_prefix) {
+        // Use the .pc file data to potentially sort the libs to the correct order.
+        libs = pc_files.fix_ordering(port, &libs);
     }
 
     Ok((dlls, libs))
@@ -639,6 +801,8 @@ struct VcpkgTarget {
 
     // directory containing the status file
     status_path: PathBuf,
+    // directory containing the install files per port.
+    packages_path: PathBuf,
 
     is_static: bool,
     lib_suffix: String,
@@ -877,7 +1041,7 @@ impl Config {
     /// Specify target triplet. When triplet is not specified, inferred triplet from rust target is used.
     ///
     /// Specifying a triplet using `target_triplet` will override the default triplet for this crate. This
-    /// cannot change the choice of triplet made by other crates, so a safer choice will be to set 
+    /// cannot change the choice of triplet made by other crates, so a safer choice will be to set
     /// `VCPKGRS_TRIPLET` in the environment which will allow all crates to use a consistent set of
     /// external dependencies.
     pub fn target_triplet<S: AsRef<str>>(&mut self, triplet: S) -> &mut Config {
@@ -1142,14 +1306,14 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
             is_static: true,
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
-        }) 
+        })
     } else if target == "aarch64-apple-ios" {
-            Ok(TargetTriplet {
-                triplet: "arm64-ios".into(),
-                is_static: true,
-                lib_suffix: "a".into(),
-                strip_lib_prefix: true,
-            })
+        Ok(TargetTriplet {
+            triplet: "arm64-ios".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
@@ -1433,16 +1597,16 @@ mod tests {
         env::set_var("VCPKGRS_DYNAMIC", "1");
         let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
-  
+
         let harfbuzz = ::Config::new()
-            // For the sake of testing, force this build to try to 
+            // For the sake of testing, force this build to try to
             // link to the arm64-osx libraries in preference to the
-            // default of arm64-ios. 
-            .target_triplet("x64-osx") 
+            // default of arm64-ios.
+            .target_triplet("x64-osx")
             .find_package("harfbuzz");
         println!("Result with specifying target triplet is {:?}", &harfbuzz);
         let harfbuzz = harfbuzz.unwrap();
-        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");        
+        assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
         clean_env();
     }
 
@@ -1488,8 +1652,8 @@ mod tests {
         println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
         assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
         clean_env();
-    } 
-    
+    }
+
     // #[test]
     // fn dynamic_build_package_specific_bailout() {
     //     clean_env();
