@@ -411,11 +411,14 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     })
 }
 
+/// Parsed knowledge from a .pc file.
 #[derive(Debug)]
 struct PcFile {
     /// The pkg-config name of this library.
     id: String,
+    /// List of libraries found as '-l', translated to a given vcpkg_target. e.g. libbrotlicommon.a
     libs: Vec<String>,
+    /// List of pkgconfig dependencies, e.g. PcFile::id.
     deps: Vec<String>,
 }
 impl PcFile {
@@ -431,14 +434,14 @@ impl PcFile {
         let mut libs = Vec::new();
         let mut deps = Vec::new();
         // Read through the file and gather what we want.
-        for line in try!(
-            std::fs::read_to_string(path).map_err(|e| Error::VcpkgInstallation(format!(
-                "Couldn't read {}",
-                path.to_string_lossy()
-            )))
-        )
-        .lines()
-        {
+        let pc_file_contents =
+            try!(
+                std::fs::read_to_string(path).map_err(|e| Error::VcpkgInstallation(format!(
+                    "Couldn't read {}",
+                    path.to_string_lossy()
+                )))
+            );
+        for line in pc_file_contents.lines() {
             // We could collect alot of stuff here, but we only care about Requires and Libs for the moment.
             if line.starts_with("Requires:") {
                 let requires_args = line.split(":").skip(1).next().unwrap_or("").split(",");
@@ -486,6 +489,7 @@ impl PcFile {
     }
 }
 
+/// Collection of PcFile.  Can be built and queried as a set of .pc files.
 #[derive(Debug)]
 struct PcFiles {
     files: BTreeMap<String, PcFile>,
