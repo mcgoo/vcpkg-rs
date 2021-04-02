@@ -1780,13 +1780,20 @@ mod tests {
             };
             pc_files.files.insert(
                 "libA".to_owned(),
-                PcFile::from_str("libA", "Libs: -lA\nRequires:", &target_triplet).unwrap(),
+                PcFile::from_str(
+                    "libA",
+                    "Libs: -lA\n\
+                     Requires:",
+                    &target_triplet,
+                )
+                .unwrap(),
             );
             pc_files.files.insert(
                 "libB".to_owned(),
                 PcFile::from_str(
                     "libB",
-                    "Libs:  -lB -lm -pthread\nRequires: libA",
+                    "Libs:  -lB -lm -pthread \n\
+                     Requires: libA",
                     &target_triplet,
                 )
                 .unwrap(),
@@ -1795,7 +1802,8 @@ mod tests {
                 "libC".to_owned(),
                 PcFile::from_str(
                     "libC",
-                    "Libs: -lC -L${libdir}\nRequires: libB <=1.0 , libmysql-client = 0.9, ",
+                    "Libs: -lC -L${libdir}\n\
+                     Requires: libB <=1.0 , libmysql-client = 0.9, ",
                     &target_triplet,
                 )
                 .unwrap(),
@@ -1804,7 +1812,8 @@ mod tests {
                 "libD".to_owned(),
                 PcFile::from_str(
                     "libD",
-                    "Libs: -Lpath/to/libs -Rplugins -lD\nRequires: libpostgres libC",
+                    "Libs: -Lpath/to/libs -Rplugins -lD\n\
+                     Requires: libpostgres libC",
                     &target_triplet,
                 )
                 .unwrap(),
