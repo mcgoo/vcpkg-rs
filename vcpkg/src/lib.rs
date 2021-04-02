@@ -528,8 +528,8 @@ impl PcFiles {
         // pc file is in our set, check if its libraries are in our set of libs.  If so, move it to
         // the end to ensure it gets linked afterwards.
 
-        // We may need to do this a few times to properly handle the case where A depends on B
-        // depend on C and libraries were originally sorted C, B, A.  Avoid recursion so we don't
+        // We may need to do this a few times to properly handle the case where A -> (depends on) B
+        // -> C -> D and libraries were originally sorted D, C, B, A.  Avoid recursion so we don't
         // have to detect potential cycles.
         let mut tries_left = 3;
         loop {
@@ -1726,46 +1726,134 @@ mod tests {
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let target_triplet = msvc_target().unwrap();
-        let mut pc_files = PcFiles {
-            files: BTreeMap::new(),
-        };
-        pc_files.files.insert(
-            "libbrotlicommon".to_owned(),
-            PcFile::from_str(
-                "libbrotlicommon",
-                "Libs: -lbrotlicommon-static\nRequires:",
-                &target_triplet,
-            )
-            .unwrap(),
-        );
-        pc_files.files.insert(
-            "libbrotlienc".to_owned(),
-            PcFile::from_str(
-                "libbrotlienc",
-                "Libs: -lbrotlienc-static\nRequires: libbrotlicommon",
-                &target_triplet,
-            )
-            .unwrap(),
-        );
-        pc_files.files.insert(
-            "libbrotlidec".to_owned(),
-            PcFile::from_str(
-                "brotlidec",
-                "Libs: -lbrotlidec-static\nRequires: libbrotlicommon >= 1.0.9",
-                &target_triplet,
-            )
-            .unwrap(),
-        );
-        // Note that the input is alphabetically sorted.
-        let input_libs = vec![
-            "libbrotlicommon-static.a".to_owned(),
-            "libbrotlidec-static.a".to_owned(),
-            "libbrotlienc-static.a".to_owned(),
-        ];
-        let output_libs = pc_files.fix_ordering(input_libs);
-        assert_eq!(output_libs[0], "libbrotlidec-static.a");
-        assert_eq!(output_libs[1], "libbrotlienc-static.a");
-        assert_eq!(output_libs[2], "libbrotlicommon-static.a");
+
+        // The brotli use-case.
+        {
+            let mut pc_files = PcFiles {
+                files: BTreeMap::new(),
+            };
+            pc_files.files.insert(
+                "libbrotlicommon".to_owned(),
+                PcFile::from_str(
+                    "libbrotlicommon",
+                    "Libs: -lbrotlicommon-static\nRequires:",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            pc_files.files.insert(
+                "libbrotlienc".to_owned(),
+                PcFile::from_str(
+                    "libbrotlienc",
+                    "Libs: -lbrotlienc-static\nRequires: libbrotlicommon",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            pc_files.files.insert(
+                "libbrotlidec".to_owned(),
+                PcFile::from_str(
+                    "brotlidec",
+                    "Libs: -lbrotlidec-static\nRequires: libbrotlicommon >= 1.0.9",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            // Note that the input is alphabetically sorted.
+            let input_libs = vec![
+                "libbrotlicommon-static.a".to_owned(),
+                "libbrotlidec-static.a".to_owned(),
+                "libbrotlienc-static.a".to_owned(),
+            ];
+            let output_libs = pc_files.fix_ordering(input_libs);
+            assert_eq!(output_libs[0], "libbrotlidec-static.a");
+            assert_eq!(output_libs[1], "libbrotlienc-static.a");
+            assert_eq!(output_libs[2], "libbrotlicommon-static.a");
+        }
+
+        // Concoct elaborate dependency graph, try all variations of input sort.
+        // Throw some (ignored) version dependencies as well as extra libs not represented in the
+        // pc_files dataset.
+        {
+            let mut pc_files = PcFiles {
+                files: BTreeMap::new(),
+            };
+            pc_files.files.insert(
+                "libA".to_owned(),
+                PcFile::from_str("libA", "Libs: -lA\nRequires:", &target_triplet).unwrap(),
+            );
+            pc_files.files.insert(
+                "libB".to_owned(),
+                PcFile::from_str(
+                    "libB",
+                    "Libs:  -lB -lm -pthread\nRequires: libA",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            pc_files.files.insert(
+                "libC".to_owned(),
+                PcFile::from_str(
+                    "libC",
+                    "Libs: -lC -L${libdir}\nRequires: libB <=1.0 , libmysql-client = 0.9, ",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            pc_files.files.insert(
+                "libD".to_owned(),
+                PcFile::from_str(
+                    "libD",
+                    "Libs: -Lpath/to/libs -Rplugins -lD\nRequires: libpostgres libC",
+                    &target_triplet,
+                )
+                .unwrap(),
+            );
+            let permutations: Vec<Vec<&str>> = vec![
+                vec!["libA.a", "libB.a", "libC.a", "libD.a"],
+                vec!["libA.a", "libB.a", "libD.a", "libC.a"],
+                vec!["libA.a", "libC.a", "libB.a", "libD.a"],
+                vec!["libA.a", "libC.a", "libD.a", "libB.a"],
+                vec!["libA.a", "libD.a", "libB.a", "libC.a"],
+                vec!["libA.a", "libD.a", "libC.a", "libB.a"],
+                //
+                vec!["libB.a", "libA.a", "libC.a", "libD.a"],
+                vec!["libB.a", "libA.a", "libD.a", "libC.a"],
+                vec!["libB.a", "libC.a", "libA.a", "libD.a"],
+                vec!["libB.a", "libC.a", "libD.a", "libA.a"],
+                vec!["libB.a", "libD.a", "libA.a", "libC.a"],
+                vec!["libB.a", "libD.a", "libC.a", "libA.a"],
+                //
+                vec!["libC.a", "libA.a", "libB.a", "libD.a"],
+                vec!["libC.a", "libA.a", "libD.a", "libB.a"],
+                vec!["libC.a", "libB.a", "libA.a", "libD.a"],
+                vec!["libC.a", "libB.a", "libD.a", "libA.a"],
+                vec!["libC.a", "libD.a", "libA.a", "libB.a"],
+                vec!["libC.a", "libD.a", "libB.a", "libA.a"],
+                //
+                vec!["libD.a", "libA.a", "libB.a", "libC.a"],
+                vec!["libD.a", "libA.a", "libC.a", "libB.a"],
+                vec!["libD.a", "libB.a", "libA.a", "libC.a"],
+                vec!["libD.a", "libB.a", "libC.a", "libA.a"],
+                vec!["libD.a", "libC.a", "libA.a", "libB.a"],
+                vec!["libD.a", "libC.a", "libB.a", "libA.a"],
+            ];
+            for permutation in permutations {
+                let input_libs = vec![
+                    permutation[0].to_owned(),
+                    permutation[1].to_owned(),
+                    permutation[2].to_owned(),
+                    permutation[3].to_owned(),
+                ];
+                let output_libs = pc_files.fix_ordering(input_libs);
+                assert_eq!(output_libs.len(), 4);
+                assert_eq!(output_libs[0], "libD.a");
+                assert_eq!(output_libs[1], "libC.a");
+                assert_eq!(output_libs[2], "libB.a");
+                assert_eq!(output_libs[3], "libA.a");
+            }
+        }
+
         clean_env();
     }
 
