@@ -428,8 +428,6 @@ impl PcFile {
                 path.to_string_lossy()
             ))))
         .to_string_lossy();
-        let mut libs = Vec::new();
-        let mut deps = Vec::new();
         // Read through the file and gather what we want.
         let pc_file_contents =
             try!(
@@ -438,7 +436,13 @@ impl PcFile {
                     path.to_string_lossy()
                 )))
             );
-        for line in pc_file_contents.lines() {
+        PcFile::from_str(&id, &pc_file_contents, &vcpkg_target.target_triplet)
+    }
+    fn from_str(id: &str, s: &str, target_triplet: &TargetTriplet) -> Result<Self, Error> {
+        let mut libs = Vec::new();
+        let mut deps = Vec::new();
+
+        for line in s.lines() {
             // We could collect alot of stuff here, but we only care about Requires and Libs for the moment.
             if line.starts_with("Requires:") {
                 let requires_args = line.split(":").skip(1).next().unwrap_or("").split(",");
@@ -518,7 +522,7 @@ impl PcFiles {
         Ok(PcFiles { files })
     }
     /// Use the .pc files as a hint to the library sort order.
-    fn fix_ordering(&self, port_name: &str, mut libs: Vec<String>) -> Vec<String> {
+    fn fix_ordering(&self, mut libs: Vec<String>) -> Vec<String> {
         // Overall heuristic here is, for each library given as input, identity which PcFile
         // declared it. Then, looking at that PcFile, check its Requires (deps), and if that
         // pc file is in our set, check if its libraries are in our set of libs.  If so, move it to
@@ -653,7 +657,7 @@ fn load_port_manifest(
     // Try loading the pc files, if they are present. Not all ports have pkgconfig.
     if let Ok(pc_files) = PcFiles::load_pkgconfig_dir(vcpkg_target, &pkg_config_prefix) {
         // Use the .pc file data to potentially sort the libs to the correct order.
-        libs = pc_files.fix_ordering(port, libs);
+        libs = pc_files.fix_ordering(libs);
     }
 
     Ok((dlls, libs))
@@ -1710,6 +1714,60 @@ mod tests {
     //     });
     //     clean_env();
     // }
+
+    #[test]
+    fn pc_files_reordering() {
+        let _g = LOCK.lock();
+        clean_env();
+        env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
+        env::set_var("TARGET", "x86_64-unknown-linux-gnu");
+        // env::set_var("VCPKGRS_DYNAMIC", "1");
+        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        env::set_var("OUT_DIR", tmp_dir.path());
+
+        let target_triplet = msvc_target().unwrap();
+        let mut pc_files = PcFiles {
+            files: BTreeMap::new(),
+        };
+        pc_files.files.insert(
+            "libbrotlicommon".to_owned(),
+            PcFile::from_str(
+                "libbrotlicommon",
+                "Libs: -lbrotlicommon-static\nRequires:",
+                &target_triplet,
+            )
+            .unwrap(),
+        );
+        pc_files.files.insert(
+            "libbrotlienc".to_owned(),
+            PcFile::from_str(
+                "libbrotlienc",
+                "Libs: -lbrotlienc-static\nRequires: libbrotlicommon",
+                &target_triplet,
+            )
+            .unwrap(),
+        );
+        pc_files.files.insert(
+            "libbrotlidec".to_owned(),
+            PcFile::from_str(
+                "brotlidec",
+                "Libs: -lbrotlidec-static\nRequires: libbrotlicommon >= 1.0.9",
+                &target_triplet,
+            )
+            .unwrap(),
+        );
+        // Note that the input is alphabetically sorted.
+        let input_libs = vec![
+            "libbrotlicommon-static.a".to_owned(),
+            "libbrotlidec-static.a".to_owned(),
+            "libbrotlienc-static.a".to_owned(),
+        ];
+        let output_libs = pc_files.fix_ordering(input_libs);
+        assert_eq!(output_libs[0], "libbrotlidec-static.a");
+        assert_eq!(output_libs[1], "libbrotlienc-static.a");
+        assert_eq!(output_libs[2], "libbrotlicommon-static.a");
+        clean_env();
+    }
 
     fn clean_env() {
         env::remove_var("TARGET");
