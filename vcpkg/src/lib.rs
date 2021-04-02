@@ -523,10 +523,10 @@ impl PcFiles {
     }
     /// Use the .pc files as a hint to the library sort order.
     fn fix_ordering(&self, mut libs: Vec<String>) -> Vec<String> {
-        // Overall heuristic here is, for each library given as input, identity which PcFile
-        // declared it. Then, looking at that PcFile, check its Requires (deps), and if that
-        // pc file is in our set, check if its libraries are in our set of libs.  If so, move it to
-        // the end to ensure it gets linked afterwards.
+        // Overall heuristic: for each library given as input, identify which PcFile declared it.
+        // Then, looking at that PcFile, check its Requires: (deps), and if the pc file for that
+        // dep is in our set, check if its libraries are in our set of libs.  If so, move it to the
+        // end to ensure it gets linked afterwards.
 
         // We may need to do this a few times to properly handle the case where A -> (depends on) B
         // -> C -> D and libraries were originally sorted D, C, B, A.  Avoid recursion so we don't
@@ -544,8 +544,8 @@ impl PcFiles {
                             None => continue,
                             Some(pc_file) => pc_file,
                         };
-                        // If any of these libs are already in the list, push them to the end.
-                        // dep_pc_file.libs
+                        // Intra-port library ordering found, pivot any already seen dep_lib to the
+                        // end of the list.
                         for dep_lib in &dep_pc_file.libs {
                             if let Some(removed) = remove_item(&mut required_lib_order, dep_lib) {
                                 required_lib_order.push(removed);
