@@ -99,6 +99,7 @@ extern crate lazy_static;
 #[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
+use std::collections::BTreeMap;
 use std::env;
 use std::error;
 use std::ffi::OsStr;
@@ -106,7 +107,6 @@ use std::fmt;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::{collections::BTreeMap, str::FromStr};
 
 /// Configuration options for finding packages, setting up the tree and emitting metadata to cargo
 #[derive(Default)]
