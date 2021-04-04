@@ -105,7 +105,7 @@ use std::error;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 /// Configuration options for finding packages, setting up the tree and emitting metadata to cargo
@@ -429,13 +429,13 @@ impl PcFile {
             ))))
         .to_string_lossy();
         // Read through the file and gather what we want.
-        let pc_file_contents =
-            try!(
-                std::fs::read_to_string(path).map_err(|e| Error::VcpkgInstallation(format!(
-                    "Couldn't read {}",
-                    path.to_string_lossy()
-                )))
-            );
+        let mut file = try!(File::open(path)
+            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't open {}", path.display()))));
+        let mut pc_file_contents = String::new();
+
+        try!(file
+            .read_to_string(&mut pc_file_contents)
+            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't read {}", path.display()))));
         PcFile::from_str(&id, &pc_file_contents, &vcpkg_target.target_triplet)
     }
     fn from_str(id: &str, s: &str, target_triplet: &TargetTriplet) -> Result<Self, Error> {
@@ -473,7 +473,7 @@ impl PcFile {
                             } else {
                                 ""
                             },
-                            lib_flag.strip_prefix("-l").unwrap(),
+                            lib_flag.trim_left_matches("-l"),
                             target_triplet.lib_suffix
                         );
                         libs.push(lib);
@@ -519,7 +519,7 @@ impl PcFiles {
             let pc_file = try!(PcFile::parse_pc_file(vcpkg_target, &dir_entry.path()));
             files.insert(pc_file.id.to_owned(), pc_file);
         }
-        Ok(PcFiles { files })
+        Ok(PcFiles { files: files })
     }
     /// Use the .pc files as a hint to the library sort order.
     fn fix_ordering(&self, mut libs: Vec<String>) -> Vec<String> {
