@@ -22,12 +22,13 @@ jobs:
           [sources.crates-io]
           registry = "file://$(pwd)/../crates-io-rewound"
           EOF
-          cd ..
+          pushd ..
           git clone https://github.com/rust-lang/crates.io-index.git crates-io-rewound
           cd crates-io-rewound
           # Reset to a point where rand 0.8.0 didn't exist in index.
           git reset --hard 46a429eac9f
           # Prime the index registry using current cargo
+          popd
           cargo build --manifest-path vcpkg/Cargo.toml --verbose
           # Clean up so rust 1.10.0 does its build.
           cargo clean
