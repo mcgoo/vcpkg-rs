@@ -35,8 +35,10 @@ jobs:
           cargo build --manifest-path vcpkg/Cargo.toml --verbose
           # Clean up so rust 1.12.0 does its build.
           cargo clean
-          # Revert changes made to the Cargo.lock file as they won't be understood by the older version of cargo.
-          git checkout Cargo.lock
+          # Remove the Cargo.lock file as a it won't be understood by the older
+          # version of cargo, and the checked in version also isn't understood
+          # at 1.12.0.
+          rm Cargo.lock
       - name: Set default Rust
         run: rustup default 1.12.0
       - name: Run build
