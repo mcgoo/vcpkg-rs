@@ -26,7 +26,7 @@ jobs:
           # Tell cargo to use a different copy of crates.io.
           mkdir -p .cargo
           cat <<EOF > .cargo/config
-          [sources.crates-io]
+          [source.crates-io]
           registry = "file://$(pwd)/../crates-io-rewound"
           EOF
           cat .cargo/config
