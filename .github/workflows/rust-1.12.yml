@@ -36,8 +36,6 @@ jobs:
           git clone https://github.com/rust-lang/crates.io-index.git crates-io-rewound
           cd crates-io-rewound
           git reset --hard 46a429eac9f
-          # Force the cargo registry to get rebuilt
-          rm -r ~/.cargo/registry/
       - name: Set default Rust
         run: rustup default 1.12.0
       - name: Run build
