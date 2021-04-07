@@ -86,9 +86,11 @@
 //!         cargo:rustc-link-lib=static=mysqlclient
 //! ```
 
-// The CI will test vcpkg-rs on 1.10 because at this point rust-openssl's
-// openssl-sys is backward compatible that far. (Actually, the oldest release
-// crate openssl version 0.10 seems to build against is now Rust 1.24.1?)
+// The CI will test vcpkg-rs on 1.12 because that is how far back vcpkg-rs 0.2 tries to be
+// compatible (was actually 1.10 see #29).  This was originally based on how far back
+// rust-openssl's openssl-sys was backward compatible when this crate originally released.
+//
+// This will likely get bumped by the next major release.
 #![allow(deprecated)]
 #![allow(warnings)]
 

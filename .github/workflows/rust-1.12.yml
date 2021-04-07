@@ -14,10 +14,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Work around incompatible crates.io
         shell: bash
-        # Point cargo at a rewound copy of crates.io that is still understood
-        # at 1.10.0.
-        # Unfortunately, pointing at a registry like this is only supported
-        # from 1.12.0 and beyond.
+        # Point cargo at a rewound copy of crates.io that would be understood
+        # at 1.10.0.  Unfortunately, pointing at a registry like this is only
+        # supported from 1.12.0 and beyond.
         run: |
           set -ex
           # Remove the Cargo.lock file, the checked in version isn't understood
