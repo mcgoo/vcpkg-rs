@@ -64,7 +64,7 @@
 
 - add a changelog for vcpkg_cli
 
-- make the breaking change of dropping Rust 1.10 compatibility when updating to 0.3
+- make the breaking change of dropping Rust 1.10 (actually 1.12) compatibility when updating to 0.3
 
 - vcpkg_cli should say if there are other versions of the ports available that do not match what is being looked for
 
