@@ -421,7 +421,7 @@ struct PcFile {
     deps: Vec<String>,
 }
 impl PcFile {
-    fn parse_pc_file(vcpkg_target: &VcpkgTarget, path: &Path) -> Result<PcFile, Error> {
+    fn parse_pc_file(vcpkg_target: &VcpkgTarget, path: &Path) -> Result<Self, Error> {
         // Extract the pkg-config name.
         let id = try!(path
             .file_stem()
@@ -498,7 +498,7 @@ struct PcFiles {
     files: BTreeMap<String, PcFile>,
 }
 impl PcFiles {
-    fn load_pkgconfig_dir(vcpkg_target: &VcpkgTarget, path: &PathBuf) -> Result<PcFiles, Error> {
+    fn load_pkgconfig_dir(vcpkg_target: &VcpkgTarget, path: &PathBuf) -> Result<Self, Error> {
         let mut files = BTreeMap::new();
         for dir_entry in try!(path.read_dir().map_err(|e| {
             Error::VcpkgInstallation(format!(
