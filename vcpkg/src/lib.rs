@@ -533,8 +533,7 @@ impl PcFiles {
         // We may need to do this a few times to properly handle the case where A -> (depends on) B
         // -> C -> D and libraries were originally sorted D, C, B, A.  Avoid recursion so we don't
         // have to detect potential cycles.
-        let mut tries_left = 3;
-        loop {
+        for _iter in 0..3 {
             let mut required_lib_order: Vec<String> = Vec::new();
             for lib in &libs {
                 required_lib_order.push(lib.to_owned());
@@ -542,15 +541,14 @@ impl PcFiles {
                     // Consider its requirements:
                     for dep in &pc_file.deps {
                         // Only consider pkgconfig dependencies we know about.
-                        let dep_pc_file = match self.files.get(dep) {
-                            None => continue,
-                            Some(pc_file) => pc_file,
-                        };
-                        // Intra-port library ordering found, pivot any already seen dep_lib to the
-                        // end of the list.
-                        for dep_lib in &dep_pc_file.libs {
-                            if let Some(removed) = remove_item(&mut required_lib_order, dep_lib) {
-                                required_lib_order.push(removed);
+                        if let Some(dep_pc_file) = self.files.get(dep) {
+                            // Intra-port library ordering found, pivot any already seen dep_lib to the
+                            // end of the list.
+                            for dep_lib in &dep_pc_file.libs {
+                                if let Some(removed) = remove_item(&mut required_lib_order, dep_lib)
+                                {
+                                    required_lib_order.push(removed);
+                                }
                             }
                         }
                     }
@@ -563,19 +561,11 @@ impl PcFiles {
             if required_lib_order == libs {
                 // Nothing changed, we're done here.
                 return libs;
-            } else {
-                // Only try a few times.
-                if tries_left <= 0 {
-                    println!("cargo:warning=vcpkg gave up trying to resolve pkg-config ordering.");
-                    return libs;
-                } else {
-                    libs = required_lib_order;
-                    tries_left = tries_left - 1;
-                    continue;
-                }
             }
+            libs = required_lib_order;
         }
-        // unreachable
+        println!("cargo:warning=vcpkg gave up trying to resolve pkg-config ordering.");
+        libs
     }
     /// Locate which PcFile contains this library, if any.
     fn locate_pc_file_by_lib(&self, lib: &str) -> Option<&PcFile> {
