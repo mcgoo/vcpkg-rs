@@ -448,16 +448,23 @@ impl PcFile {
         for line in s.lines() {
             // We could collect alot of stuff here, but we only care about Requires and Libs for the moment.
             if line.starts_with("Requires:") {
-                let requires_args = line.split(":").skip(1).next().unwrap_or("").split(",");
-                for mut dep in requires_args {
+                let mut requires_args = line
+                    .split(":")
+                    .skip(1)
+                    .next()
+                    .unwrap_or("")
+                    .split_whitespace()
+                    .map(|e| e.split(","))
+                    .flatten()
+                    .filter(|s| *s != "");
+                while let Some(dep) = requires_args.next() {
                     // Drop any versioning requirements, we only care about library order and rely upon
                     // port dependencies to resolve versioning.
-                    if let Some(inequality) = dep.find(|c| c == '=' || c == '<' || c == '>') {
-                        dep = dep.split_at(inequality).0;
+                    if let Some(_) = dep.find(|c| c == '=' || c == '<' || c == '>') {
+                        requires_args.next();
+                        continue;
                     }
-                    dep = dep.trim();
-                    // Sometimes Requires: lines don't have commas, so split again.
-                    deps.extend(dep.split_whitespace().map(|s| s.to_owned()));
+                    deps.push(dep.to_owned());
                 }
             } else if line.starts_with("Libs:") {
                 let lib_flags = line
@@ -1854,6 +1861,42 @@ mod tests {
                 assert_eq!(output_libs[2], "libB.a");
                 assert_eq!(output_libs[3], "libA.a");
             }
+        }
+
+        // Test parsing of a couple different Requires: lines.
+        {
+            let pc_file = PcFile::from_str(
+                "test",
+                "Libs: -ltest\n\
+                 Requires: cairo libpng",
+                &target_triplet,
+            )
+            .unwrap();
+            assert_eq!(pc_file.deps, vec!["cairo", "libpng"]);
+            let pc_file = PcFile::from_str(
+                "test",
+                "Libs: -ltest\n\
+                 Requires: cairo xcb >= 1.6 xcb-render >= 1.6",
+                &target_triplet,
+            )
+            .unwrap();
+            assert_eq!(pc_file.deps, vec!["cairo", "xcb", "xcb-render"]);
+            let pc_file = PcFile::from_str(
+                "test",
+                "Libs: -ltest\n\
+                 Requires: glib-2.0, gobject-2.0",
+                &target_triplet,
+            )
+            .unwrap();
+            assert_eq!(pc_file.deps, vec!["glib-2.0", "gobject-2.0"]);
+            let pc_file = PcFile::from_str(
+                "test",
+                "Libs: -ltest\n\
+                 Requires: glib-2.0 >=  2.58.0, gobject-2.0 >=  2.58.0",
+                &target_triplet,
+            )
+            .unwrap();
+            assert_eq!(pc_file.deps, vec!["glib-2.0", "gobject-2.0"]);
         }
 
         clean_env();
