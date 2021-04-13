@@ -102,6 +102,7 @@ extern crate lazy_static;
 use std::ascii::AsciiExt;
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::env;
 use std::error;
 use std::ffi::OsStr;
@@ -495,11 +496,11 @@ impl PcFile {
 /// Collection of PcFile.  Can be built and queried as a set of .pc files.
 #[derive(Debug)]
 struct PcFiles {
-    files: BTreeMap<String, PcFile>,
+    files: HashMap<String, PcFile>,
 }
 impl PcFiles {
     fn load_pkgconfig_dir(vcpkg_target: &VcpkgTarget, path: &PathBuf) -> Result<Self, Error> {
-        let mut files = BTreeMap::new();
+        let mut files = HashMap::new();
         for dir_entry in try!(path.read_dir().map_err(|e| {
             Error::VcpkgInstallation(format!(
                 "Missing pkgconfig directory {}: {}",
@@ -1722,7 +1723,7 @@ mod tests {
         // The brotli use-case.
         {
             let mut pc_files = PcFiles {
-                files: BTreeMap::new(),
+                files: HashMap::new(),
             };
             pc_files.files.insert(
                 "libbrotlicommon".to_owned(),
@@ -1768,7 +1769,7 @@ mod tests {
         // pc_files dataset.
         {
             let mut pc_files = PcFiles {
-                files: BTreeMap::new(),
+                files: HashMap::new(),
             };
             pc_files.files.insert(
                 "libA".to_owned(),
