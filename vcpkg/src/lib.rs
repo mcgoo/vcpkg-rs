@@ -454,8 +454,7 @@ impl PcFile {
                     .next()
                     .unwrap_or("")
                     .split_whitespace()
-                    .map(|e| e.split(","))
-                    .flatten()
+                    .flat_map(|e| e.split(","))
                     .filter(|s| *s != "");
                 while let Some(dep) = requires_args.next() {
                     // Drop any versioning requirements, we only care about library order and rely upon
