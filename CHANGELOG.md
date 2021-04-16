@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
-## [Unreleased] - 2020-12-10
+## [0.2.12] - 2021-04-16
+
+### Added
+
+- Library link order now respects .pc file specification. Fixes broken linking that may have been observed with some ports.
+
+## [0.2.11] - 2020-12-10
 
 ### Added
 
