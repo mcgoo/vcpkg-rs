@@ -1367,6 +1367,29 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
                 strip_lib_prefix: false,
             })
         }
+    } else if target.starts_with("aarch64") {
+        if is_static {
+            Ok(TargetTriplet {
+                triplet: "arm64-windows-static".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else if is_definitely_dynamic {
+            Ok(TargetTriplet {
+                triplet: "arm64-windows".into(),
+                is_static: false,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        } else {
+            Ok(TargetTriplet {
+                triplet: "arm64-windows-static-md".into(),
+                is_static: true,
+                lib_suffix: "lib".into(),
+                strip_lib_prefix: false,
+            })
+        }
     } else {
         // everything else is x86
         if is_static {
