@@ -14,8 +14,8 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use vcpkg::{find_vcpkg_root, Config};
 
 // settings for a specific Rust target
-#[serde(rename_all = "kebab-case")]
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct Target {
     triplet: Option<String>,
     // this dependencies key for a specific target overrides the main entry
@@ -25,8 +25,8 @@ struct Target {
     dev_dependencies: Option<Vec<String>>,
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct Vcpkg {
     //  vcpkg_root: Option<String>,
     #[serde(default = "BTreeMap::new")]
