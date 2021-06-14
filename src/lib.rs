@@ -1939,7 +1939,6 @@ mod tests {
     fn vcpkg_test_tree_loc(name: &str) -> PathBuf {
         let mut path = PathBuf::new();
         path.push(env::var("CARGO_MANIFEST_DIR").unwrap());
-        path.pop();
         path.push("test-data");
         path.push(name);
         path
