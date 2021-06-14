@@ -17,7 +17,7 @@ zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optiona
 
 # always test against the vcpkg crate in this repo
 [patch.crates-io]
-vcpkg = { path = '../vcpkg' }
+vcpkg = { path = '../' }
 
 [patch.'https://github.com/mcgoo/vcpkg-rs']
-vcpkg = { path = '../vcpkg' }
+vcpkg = { path = '../' }

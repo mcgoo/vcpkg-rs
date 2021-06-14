@@ -7,5 +7,5 @@ authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
 
 [build-dependencies]
-vcpkg = { path = "../../vcpkg" }
+vcpkg = { path = "../../" }
 cc = "1.0"
