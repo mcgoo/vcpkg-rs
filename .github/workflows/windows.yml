@@ -100,6 +100,3 @@ jobs:
           cargo test --target ${{ matrix.config.target }} --all
           cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- probe curl
           cargo run --target ${{ matrix.config.target }} --manifest-path systest/Cargo.toml
-      - name: Run cargo-vcpkg integration tests
-        shell: bash
-        run: wstest/run.sh

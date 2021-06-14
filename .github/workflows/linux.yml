@@ -24,5 +24,3 @@ jobs:
         run: |
           tests/run.sh
           tests/vcpkgrs_target.sh
-      - name: Run cargo-vcpkg integration tests
-        run: wstest/run.sh
