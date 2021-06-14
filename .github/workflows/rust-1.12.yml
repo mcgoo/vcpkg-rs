@@ -19,9 +19,6 @@ jobs:
         # supported from 1.12.0 and beyond.
         run: |
           set -ex
-          # Remove the Cargo.lock file, the checked in version isn't understood
-          # at 1.12.0.
-          rm Cargo.lock
           # Tell cargo to use a different copy of crates.io.
           mkdir -p .cargo
           cat <<EOF > .cargo/config
