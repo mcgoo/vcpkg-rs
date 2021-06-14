@@ -38,7 +38,7 @@ jobs:
       - name: Set default Rust
         run: rustup default 1.12.0
       - name: Run build
-        run: cargo build --manifest-path vcpkg/Cargo.toml --verbose
+        run: cargo build --verbose
       # tests can't be run because they use ONCE which needs a newer compiler
       # - name: Run unit tests
-      #   run: cargo test --manifest-path vcpkg/Cargo.toml --verbose
+      #   run: cargo test --verbose
