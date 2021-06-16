@@ -70,9 +70,9 @@ jobs:
       - name: Install the target
         run: rustup target add ${{ matrix.config.target }}
       - name: Run build
-        run: cargo build --target ${{ matrix.config.target }} --manifest-path vcpkg/Cargo.toml --verbose
+        run: cargo build --target ${{ matrix.config.target }} --verbose
       - name: Run unit tests
-        run: cargo test --target ${{ matrix.config.target }} --manifest-path vcpkg/Cargo.toml --verbose
+        run: cargo test --target ${{ matrix.config.target }} --verbose
       - name: Install vcpkg
         run: |
           git clone https://github.com/Microsoft/vcpkg.git vcp
@@ -100,6 +100,3 @@ jobs:
           cargo test --target ${{ matrix.config.target }} --all
           cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- probe curl
           cargo run --target ${{ matrix.config.target }} --manifest-path systest/Cargo.toml
-      - name: Run cargo-vcpkg integration tests
-        shell: bash
-        run: wstest/run.sh
