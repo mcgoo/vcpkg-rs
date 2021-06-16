@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html) as implemented by Cargo.
 
+## [0.2.14] - 2021-06-16
+
+### Changed
+
+- No change in functionality.
+- Correct rustc warning regarding ordering of `serde` vs `derive` attributes.
+- Repository refactored from workspace to `vcpkg` being the top-level crate.
+  Ensures test-data, README.md and LICENSE files are packaged by the crate.
+- `cargo-vcpkg` removed from the repo, as it is now homed at mcgoo/cargo-vcpkg
+  as of its `0.1.6` release.
+- Integration tests will now bootstrap vcpkg if required.
+
 ## [0.2.13] - 2021-05-21
 
 ### Added
