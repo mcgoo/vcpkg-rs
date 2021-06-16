@@ -6,6 +6,8 @@ cd $SCRIPTDIR
 
 export VCPKG_ROOT=$SCRIPTDIR/../vcp
 
+source ../setup_vcp.sh
+
 for port in harfbuzz ; do
     # check that the port fails before it is installed
     $VCPKG_ROOT/vcpkg remove $port  || true
