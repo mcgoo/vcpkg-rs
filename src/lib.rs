@@ -446,7 +446,7 @@ impl PcFile {
         let mut deps = Vec::new();
 
         for line in s.lines() {
-            // We could collect alot of stuff here, but we only care about Requires and Libs for the moment.
+            // We could collect a lot of stuff here, but we only care about Requires and Libs for the moment.
             if line.starts_with("Requires:") {
                 let mut requires_args = line
                     .split(":")
