@@ -78,3 +78,4 @@
 touch `grep -h \.lib$ vcpkg/info/*x86* | grep -v debug `
 touch `grep -h \.dll$ vcpkg/info/*x86* | grep -v debug `
 ```
+
