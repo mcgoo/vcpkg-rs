@@ -20,3 +20,4 @@ See the crate [documentation](https://docs.rs/vcpkg) for more information. See [
 ## License
 
 See LICENSE-APACHE, and LICENSE-MIT for details.
+
