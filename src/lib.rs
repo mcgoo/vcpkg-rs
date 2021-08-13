@@ -390,8 +390,15 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
 
-    let mut base = vcpkg_root.clone();
-    base.push("installed");
+    let mut base = if env::var_os("VCPKGRS_MANIFEST_MODE").is_none() {
+        let mut base = vcpkg_root.clone();
+        base.join("installed")
+    } else {
+        let mut base =
+            PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("we use cargo, this exists"));
+        base.join("vcpkg_installed")
+    };
+
     let status_path = base.join("vcpkg");
 
     base.push(&target_triplet.triplet);
