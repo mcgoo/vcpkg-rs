@@ -395,11 +395,11 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let is_manifest_mode = env::var_os("VCPKGRS_IGNORE_MANIFEST_MODE").is_none()
         && Path::exists(cargo_base_path.join("vcpkg.json").as_path());
 
-    if is_manifest_mode {
+    let mut base = if !is_manifest_mode {
         vcpkg_root.join("installed")
     } else {
         cargo_base_path.join("vcpkg_installed")
-    }
+    };
 
     let status_path = base.join("vcpkg");
 
