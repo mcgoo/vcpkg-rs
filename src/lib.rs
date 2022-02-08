@@ -1420,11 +1420,12 @@ fn msvc_target() -> Result<TargetTriplet, Error> {
 #[cfg(test)]
 mod tests {
 
-    extern crate tempdir;
+    extern crate tempfile;
 
     use super::*;
     use std::env;
     use std::sync::Mutex;
+    use self::tempfile::tempdir;
 
     lazy_static! {
         static ref LOCK: Mutex<()> = Mutex::new(());
@@ -1495,7 +1496,7 @@ mod tests {
         clean_env();
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "x86_64-pc-windows-msvc");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         // CARGO_CFG_TARGET_FEATURE is set in response to
@@ -1517,7 +1518,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
         env::set_var("TARGET", "x86_64-pc-windows-msvc");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         println!("Result is {:?}", ::find_package("libmysql"));
@@ -1535,7 +1536,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("multiline-description"));
         env::set_var("TARGET", "i686-pc-windows-msvc");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         println!("Result is {:?}", ::find_package("graphite2"));
@@ -1553,7 +1554,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "i686-pc-windows-msvc");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         println!("Result is {:?}", ::find_package("harfbuzz"));
@@ -1582,7 +1583,7 @@ mod tests {
             env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
             env::set_var("TARGET", target);
             env::set_var("VCPKGRS_DYNAMIC", "1");
-            let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+            let tmp_dir = tempdir().unwrap();
             env::set_var("OUT_DIR", tmp_dir.path());
 
             println!("Result is {:?}", ::find_package("harfbuzz"));
@@ -1605,7 +1606,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "i686-pc-windows-msvc");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let lib = ::find_package("harfbuzz").unwrap();
@@ -1646,7 +1647,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "aarch64-apple-ios");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let harfbuzz = ::Config::new()
@@ -1669,7 +1670,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "aarch64-apple-doesnotexist");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let harfbuzz = ::find_package("harfbuzz");
@@ -1691,7 +1692,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "aarch64-apple-ios");
         env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let harfbuzz = ::find_package("harfbuzz").unwrap();
@@ -1744,7 +1745,7 @@ mod tests {
         env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("normalized"));
         env::set_var("TARGET", "x86_64-unknown-linux-gnu");
         // env::set_var("VCPKGRS_DYNAMIC", "1");
-        let tmp_dir = tempdir::TempDir::new("vcpkg_tests").unwrap();
+        let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
         let target_triplet = msvc_target().unwrap();
