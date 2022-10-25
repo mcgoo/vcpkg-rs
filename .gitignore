@@ -2,3 +2,5 @@ Cargo.lock
 target/
 .vscode/
 vcp/
+.idea/
+.DS_Store
