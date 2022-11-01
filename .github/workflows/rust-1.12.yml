@@ -30,6 +30,8 @@ jobs:
           # exist in index.
           cd ..
           git clone https://github.com/rust-lang/crates.io-index-archive.git --single-branch --branch 'snapshot-2018-09-26' crates-io-rewound
+          cd crates-io-rewound
+          git checkout -b master
       - name: Set default Rust
         run: rustup default 1.12.0
       - name: Run build
