@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Work around incompatible crates.io
         shell: bash
         # Point cargo at a rewound copy of crates.io that would be understood
@@ -26,12 +26,10 @@ jobs:
           registry = "file://$(pwd)/../crates-io-rewound"
           EOF
           cat .cargo/config
-          # create copy of crates.io, reset back to when rand 0.8.0 didn't
+          # use an old archive of crates.io, reset back to when rand 0.8.0 didn't
           # exist in index.
           cd ..
-          git clone https://github.com/rust-lang/crates.io-index.git crates-io-rewound
-          cd crates-io-rewound
-          git reset --hard 46a429eac9f
+          git clone https://github.com/rust-lang/crates.io-index-archive.git --single-branch --branch 'snapshot-2018-09-26' crates-io-rewound
       - name: Set default Rust
         run: rustup default 1.12.0
       - name: Run build
