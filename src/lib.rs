@@ -129,6 +129,9 @@ pub struct Config {
     /// should DLLs be copied to OUT_DIR?
     copy_dlls: bool,
 
+    /// override vcpkg installed path instead of using VCPKG_ROOT/installed
+    vcpkg_installed_dir: Option<PathBuf>,
+
     /// override VCPKG_ROOT environment variable
     vcpkg_root: Option<PathBuf>,
 
@@ -390,8 +393,11 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let vcpkg_root = try!(find_vcpkg_root(&cfg));
     try!(validate_vcpkg_root(&vcpkg_root));
 
-    let mut base = vcpkg_root.clone();
-    base.push("installed");
+    let mut base = cfg
+        .vcpkg_installed_dir
+        .clone()
+        .unwrap_or(vcpkg_root.join("installed"));
+
     let status_path = base.join("vcpkg");
 
     base.push(&target_triplet.triplet);
@@ -721,12 +727,13 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     // load updates to the status file that have yet to be normalized
     let status_update_dir = target.status_path.join("updates");
 
-    let paths = try!(
-        fs::read_dir(status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
-            "could not read status file updates dir: {}",
+    let paths = try!(fs::read_dir(&status_update_dir).map_err(
+        |e| Error::VcpkgInstallation(format!(
+            "could not read status file updates dir ({}): {}",
+            status_update_dir.display(),
             e
-        )))
-    );
+        ))
+    ));
 
     // get all of the paths of the update files into a Vec<PathBuf>
     let mut paths = try!(paths
@@ -1053,6 +1060,13 @@ impl Config {
     /// Defaults to `true`.
     pub fn copy_dlls(&mut self, copy_dlls: bool) -> &mut Config {
         self.copy_dlls = copy_dlls;
+        self
+    }
+
+    /// Specify vcpkg installed directory. This is useful for manifest mode and custom vcpkg installation.
+    /// Default is $VCPKG_ROOT/installed
+    pub fn vcpkg_installed_dir(&mut self, vcpkg_installed_dir: PathBuf) -> &mut Config {
+        self.vcpkg_installed_dir = Some(vcpkg_installed_dir);
         self
     }
 
