@@ -867,7 +867,7 @@ impl Config {
             let target = if let Ok(triplet_str) = env::var("VCPKGRS_TRIPLET") {
                 triplet_str.into()
             } else {
-                try!(msvc_target())
+                try!(detect_target_triplet())
             };
             self.target = Some(target);
         }
@@ -1322,7 +1322,7 @@ fn envify(name: &str) -> String {
         .collect()
 }
 
-fn msvc_target() -> Result<TargetTriplet, Error> {
+fn detect_target_triplet() -> Result<TargetTriplet, Error> {
     let is_definitely_dynamic = env::var("VCPKGRS_DYNAMIC").is_ok();
     let target = env::var("TARGET").unwrap_or(String::new());
     let is_static = env::var("CARGO_CFG_TARGET_FEATURE")
@@ -1762,7 +1762,7 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        let target_triplet = msvc_target().unwrap();
+        let target_triplet = detect_target_triplet().unwrap();
 
         // The brotli use-case.
         {
