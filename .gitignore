@@ -4,3 +4,4 @@ target/
 vcp/
 .idea/
 .DS_Store
+vcpkg_installed

@@ -18,3 +18,21 @@ for port in harfbuzz ; do
     $VCPKG_ROOT/vcpkg install $port
     cargo run --manifest-path $port/Cargo.toml
 done
+
+
+# check manifest mode
+
+# clean first
+cargo clean --manifest-path top-level/Cargo.toml
+unset VCPKG_INSTALLED_ROOT
+rm -rf $VCPKG_ROOT/installed
+
+cargo run --manifest-path top-level/Cargo.toml && exit 2
+echo "This failure is expected, as we haven't installed anything from vcpkg yet."
+
+export VCPKG_INSTALLED_ROOT=$SCRIPTDIR/top-level/vcpkg_installed
+pushd top-level
+$VCPKG_ROOT/vcpkg install
+popd
+cargo run --manifest-path top-level/Cargo.toml
+unset VCPKG_INSTALLED_ROOT

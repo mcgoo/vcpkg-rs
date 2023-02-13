@@ -129,8 +129,8 @@ pub struct Config {
     /// should DLLs be copied to OUT_DIR?
     copy_dlls: bool,
 
-    /// override vcpkg installed path instead of using VCPKG_ROOT/installed
-    vcpkg_installed_dir: Option<PathBuf>,
+    /// override vcpkg installed path, regardless of both VCPKG_ROOT/installed and VCPKG_INSTALLED_ROOT environment variables
+    vcpkg_installed_root: Option<PathBuf>,
 
     /// override VCPKG_ROOT environment variable
     vcpkg_root: Option<PathBuf>,
@@ -394,8 +394,9 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     try!(validate_vcpkg_root(&vcpkg_root));
 
     let mut base = cfg
-        .vcpkg_installed_dir
+        .vcpkg_installed_root
         .clone()
+        .or(env::var_os("VCPKG_INSTALLED_ROOT").map(PathBuf::from))
         .unwrap_or(vcpkg_root.join("installed"));
 
     let status_path = base.join("vcpkg");
@@ -1064,9 +1065,10 @@ impl Config {
     }
 
     /// Specify vcpkg installed directory. This is useful for manifest mode and custom vcpkg installation.
-    /// Default is $VCPKG_ROOT/installed
-    pub fn vcpkg_installed_dir(&mut self, vcpkg_installed_dir: PathBuf) -> &mut Config {
-        self.vcpkg_installed_dir = Some(vcpkg_installed_dir);
+    /// If not set, will use VCPKG_INSTALLED_ROOT environment variable.
+    /// If VCPKG_INSTALLED_ROOT is not set, will use VCPKG_ROOT/installed.
+    pub fn vcpkg_installed_root(&mut self, vcpkg_installed_root: PathBuf) -> &mut Config {
+        self.vcpkg_installed_root = Some(vcpkg_installed_root);
         self
     }
 
