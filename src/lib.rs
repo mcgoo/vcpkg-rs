@@ -51,11 +51,17 @@
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
-//! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg installation. If
+//! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg root. If
 //! it is not set, vcpkg will use the user-wide installation if one has been
 //! set up with `vcpkg integrate install`, and check the crate source and target
 //! to see if a vcpkg tree has been created by [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg).
 //!
+//! * `VCPKG_INSTALLED_ROOT` - Set the directory for the vcpkg installed directory. Corresponding to
+//! `--x-install-root` flag in `vcpkg install` command.
+//! A typical use case is to set it to `vcpkg_installed` directory under build directory 
+//! to adapt [manifest mode of vcpkg](https://learn.microsoft.com/en-us/vcpkg/users/manifests).
+//! If set, this will override the default value of `VCPKG_ROOT/installed`.
+//!  
 //! * `VCPKGRS_TRIPLET` - Use this to override vcpkg-rs' default triplet selection with your own.
 //! This is how to select a custom vcpkg triplet.
 //!
