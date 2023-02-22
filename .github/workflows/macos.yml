@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      - name: Install pkg-config
+        run: brew install pkg-config
       - uses: actions/checkout@v2
       - name: Run build
         run: cargo build --verbose
