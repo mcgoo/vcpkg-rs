@@ -51,11 +51,17 @@
 //! A number of environment variables are available to globally configure which
 //! libraries are selected.
 //!
-//! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg installation. If
+//! * `VCPKG_ROOT` - Set the directory to look in for a vcpkg root. If
 //! it is not set, vcpkg will use the user-wide installation if one has been
 //! set up with `vcpkg integrate install`, and check the crate source and target
 //! to see if a vcpkg tree has been created by [cargo-vcpkg](https://crates.io/crates/cargo-vcpkg).
 //!
+//! * `VCPKG_INSTALLED_ROOT` - Set the directory for the vcpkg installed directory. Corresponding to
+//! `--x-install-root` flag in `vcpkg install` command.
+//! A typical use case is to set it to `vcpkg_installed` directory under build directory 
+//! to adapt [manifest mode of vcpkg](https://learn.microsoft.com/en-us/vcpkg/users/manifests).
+//! If set, this will override the default value of `VCPKG_ROOT/installed`.
+//!  
 //! * `VCPKGRS_TRIPLET` - Use this to override vcpkg-rs' default triplet selection with your own.
 //! This is how to select a custom vcpkg triplet.
 //!
@@ -129,8 +135,8 @@ pub struct Config {
     /// should DLLs be copied to OUT_DIR?
     copy_dlls: bool,
 
-    /// override vcpkg installed path instead of using VCPKG_ROOT/installed
-    vcpkg_installed_dir: Option<PathBuf>,
+    /// override vcpkg installed path, regardless of both VCPKG_ROOT/installed and VCPKG_INSTALLED_ROOT environment variables
+    vcpkg_installed_root: Option<PathBuf>,
 
     /// override VCPKG_ROOT environment variable
     vcpkg_root: Option<PathBuf>,
@@ -394,8 +400,9 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     try!(validate_vcpkg_root(&vcpkg_root));
 
     let mut base = cfg
-        .vcpkg_installed_dir
+        .vcpkg_installed_root
         .clone()
+        .or(env::var_os("VCPKG_INSTALLED_ROOT").map(PathBuf::from))
         .unwrap_or(vcpkg_root.join("installed"));
 
     let status_path = base.join("vcpkg");
@@ -1064,9 +1071,10 @@ impl Config {
     }
 
     /// Specify vcpkg installed directory. This is useful for manifest mode and custom vcpkg installation.
-    /// Default is $VCPKG_ROOT/installed
-    pub fn vcpkg_installed_dir(&mut self, vcpkg_installed_dir: PathBuf) -> &mut Config {
-        self.vcpkg_installed_dir = Some(vcpkg_installed_dir);
+    /// If not set, will use VCPKG_INSTALLED_ROOT environment variable.
+    /// If VCPKG_INSTALLED_ROOT is not set, will use VCPKG_ROOT/installed.
+    pub fn vcpkg_installed_root(&mut self, vcpkg_installed_root: PathBuf) -> &mut Config {
+        self.vcpkg_installed_root = Some(vcpkg_installed_root);
         self
     }
 
