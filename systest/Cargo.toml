@@ -12,7 +12,8 @@ extras=["zmq-sys"]
 # versions do not build
 curl = "*"
 libz-sys = "*"
-openssl-sys = "*"
+# TODO: roll back to upstream once vcpkg issue fixed
+openssl-sys = { git = "https://github.com/micolous/libz-sys", branch = "vcpkg" }
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
 
 # always test against the vcpkg crate in this repo

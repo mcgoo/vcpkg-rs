@@ -117,5 +117,5 @@ jobs:
           ${VCPKG_ROOT}/vcpkg.exe install curl zeromq openssl
           cargo build --target ${{ matrix.config.target }} --all
           cargo test --target ${{ matrix.config.target }} --all
-          cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- probe curl
+          cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- --target ${{ matrix.config.target }} probe curl
           cargo run --target ${{ matrix.config.target }} --manifest-path systest/Cargo.toml
