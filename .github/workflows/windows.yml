@@ -40,6 +40,24 @@ jobs:
               VCPKG_DEFAULT_TRIPLET: "x86-windows",
               VCPKGRS_DYNAMIC: 1,
             }
+          - {
+              target: "x86_64-pc-windows-gnu",
+              VCPKG_DEFAULT_TRIPLET: "x64-mingw-static",
+            }
+          - {
+              target: "x86_64-pc-windows-gnu",
+              VCPKG_DEFAULT_TRIPLET: "x64-mingw-dynamic",
+              VCPKGRS_DYNAMIC: 1,
+            }
+          - {
+              target: "i686-pc-windows-gnu",
+              VCPKG_DEFAULT_TRIPLET: "x86-mingw-static",
+            }
+          - {
+              target: "i686-pc-windows-gnu",
+              VCPKG_DEFAULT_TRIPLET: "x86-mingw-dynamic",
+              VCPKGRS_DYNAMIC: 1,
+            }
       fail-fast: false
     steps:
       - uses: actions/checkout@v2
