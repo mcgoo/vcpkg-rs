@@ -49,15 +49,16 @@ jobs:
               VCPKG_DEFAULT_TRIPLET: "x64-mingw-dynamic",
               VCPKGRS_DYNAMIC: 1,
             }
-          - {
-              target: "i686-pc-windows-gnu",
-              VCPKG_DEFAULT_TRIPLET: "x86-mingw-static",
-            }
-          - {
-              target: "i686-pc-windows-gnu",
-              VCPKG_DEFAULT_TRIPLET: "x86-mingw-dynamic",
-              VCPKGRS_DYNAMIC: 1,
-            }
+          # GitHub Actions doesn't have an i686 Mingw compiler.
+          # - {
+          #     target: "i686-pc-windows-gnu",
+          #     VCPKG_DEFAULT_TRIPLET: "x86-mingw-static",
+          #   }
+          # - {
+          #     target: "i686-pc-windows-gnu",
+          #     VCPKG_DEFAULT_TRIPLET: "x86-mingw-dynamic",
+          #     VCPKGRS_DYNAMIC: 1,
+          #   }
       fail-fast: false
     steps:
       - uses: actions/checkout@v2
