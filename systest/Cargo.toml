@@ -11,9 +11,9 @@ extras=["zmq-sys"]
 # the purpose of this project is to fail in CI if the latest
 # versions do not build
 curl = "*"
-libz-sys = "*"
 # TODO: roll back to upstream once vcpkg issue fixed
-openssl-sys = { git = "https://github.com/micolous/libz-sys", branch = "vcpkg" }
+libz-sys = { git = "https://github.com/micolous/libz-sys", branch = "vcpkg" }
+openssl-sys = "*"
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
 
 # always test against the vcpkg crate in this repo
