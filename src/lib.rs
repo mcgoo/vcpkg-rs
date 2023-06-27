@@ -1499,16 +1499,16 @@ mod tests {
     fn do_nothing_for_unsupported_target() {
         let _g = LOCK.lock();
         env::set_var("VCPKG_ROOT", "/");
-        env::set_var("TARGET", "x86_64-pc-windows-gnu");
+        env::set_var("TARGET", "x86_64-pc-windows-invalid");
         assert!(match ::probe_package("foo") {
             Err(Error::NotMSVC) => true,
             _ => false,
         });
 
-        env::set_var("TARGET", "x86_64-pc-windows-gnu");
-        assert_eq!(env::var("TARGET"), Ok("x86_64-pc-windows-gnu".to_string()));
+        env::set_var("TARGET", "aarch64-pc-windows-gnu");
+        assert_eq!(env::var("TARGET"), Ok("aarch64-pc-windows-gnu".to_string()));
         assert!(match ::probe_package("foo") {
-            Err(Error::NotMSVC) => true,
+            Err(Error::UnsupportedArchitecture) => true,
             _ => false,
         });
         env::remove_var("TARGET");
@@ -1640,6 +1640,8 @@ mod tests {
         for target in &[
             "x86_64-apple-darwin",
             "i686-pc-windows-msvc",
+            // TODO: add test data for platforms
+            // "x86_64-pc-windows-gnu",
             //      "x86_64-pc-windows-msvc",
             //    "x86_64-unknown-linux-gnu",
         ] {
