@@ -11,15 +11,17 @@ extras=["zmq-sys"]
 # the purpose of this project is to fail in CI if the latest
 # versions do not build
 curl = "*"
-# TODO: roll back to upstream once vcpkg issue fixed
-libz-sys = { git = "https://github.com/micolous/libz-sys", branch = "vcpkg" }
+libz-sys = "*"
 openssl-sys = "*"
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
 
 # always test against the vcpkg crate in this repo
 [patch.crates-io]
 vcpkg = { path = '../' }
+# TODO: roll back to upstream once PRs merged
+curl = { git = "https://github.com/micolous/curl-rust", branch = "vcpkg" }
 libz-sys = { git = "https://github.com/micolous/libz-sys", branch = "vcpkg" }
+openssl-sys = { git = "https://github.com/micolous/rust-openssl", branch = "vcpkg" }
 
 [patch.'https://github.com/mcgoo/vcpkg-rs']
 vcpkg = { path = '../' }
