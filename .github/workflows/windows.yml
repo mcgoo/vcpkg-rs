@@ -16,29 +16,35 @@ jobs:
               target: "x86_64-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x64-windows-static",
               RUSTFLAGS: "-Ctarget-feature=+crt-static",
+              features: "curl",
             }
           - {
               target: "x86_64-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x64-windows-static-md",
+              features: "curl",
             }
           - {
               target: "x86_64-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x64-windows",
               VCPKGRS_DYNAMIC: 1,
+              features: "curl",
             }
           - {
               target: "i686-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x86-windows-static",
               RUSTFLAGS: "-Ctarget-feature=+crt-static",
+              features: "curl",
             }
           - {
               target: "i686-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x86-windows-static-md",
+              features: "curl",
             }
           - {
               target: "i686-pc-windows-msvc",
               VCPKG_DEFAULT_TRIPLET: "x86-windows",
               VCPKGRS_DYNAMIC: 1,
+              features: "curl",
             }
           - {
               target: "x86_64-pc-windows-gnu",
@@ -49,19 +55,9 @@ jobs:
               VCPKG_DEFAULT_TRIPLET: "x64-mingw-dynamic",
               VCPKGRS_DYNAMIC: 1,
             }
-          # GitHub Actions doesn't have an i686 Mingw compiler.
-          # - {
-          #     target: "i686-pc-windows-gnu",
-          #     VCPKG_DEFAULT_TRIPLET: "x86-mingw-static",
-          #   }
-          # - {
-          #     target: "i686-pc-windows-gnu",
-          #     VCPKG_DEFAULT_TRIPLET: "x86-mingw-dynamic",
-          #     VCPKGRS_DYNAMIC: 1,
-          #   }
       fail-fast: false
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Dump GitHub context
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
@@ -114,8 +110,11 @@ jobs:
           echo VCPKG_ROOT=${VCPKG_ROOT}
           echo dyn=${{ matrix.config.VCPKGRS_DYNAMIC }}
           if [ '${{ matrix.config.VCPKGRS_DYNAMIC }}' != '' ] ; then export VCPKGRS_DYNAMIC=1 ; fi
-          ${VCPKG_ROOT}/vcpkg.exe install curl zeromq openssl
+          ${VCPKG_ROOT}/vcpkg.exe install zlib zeromq openssl
+          if [ '${{ matrix.config.features }}' =~ 'curl' ]
+            ${VCPKG_ROOT}/vcpkg.exe install curl
+          fi
           cargo build --target ${{ matrix.config.target }} --all
           cargo test --target ${{ matrix.config.target }} --all
-          cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- --target ${{ matrix.config.target }} probe curl
-          cargo run --target ${{ matrix.config.target }} --manifest-path systest/Cargo.toml
+          cargo run --target ${{ matrix.config.target }} --manifest-path vcpkg_cli/Cargo.toml -- --target ${{ matrix.config.target }} probe zlib
+          cargo run --target ${{ matrix.config.target }} --manifest-path systest/Cargo.toml --features '${{ matrix.config.features }}'

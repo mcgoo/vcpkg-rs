@@ -4,13 +4,14 @@ version = "0.1.0"
 authors = ["Jim McGrath <jimmc2@gmail.com>"]
 
 [features]
+curl=["dep:curl"]
 extras=["zmq-sys"]
 
 [dependencies]
 # using * for the dependency version is appropriate here since
 # the purpose of this project is to fail in CI if the latest
 # versions do not build
-curl = "*"
+curl = { version = "*", optional = true }
 libz-sys = "*"
 openssl-sys = "*"
 zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optional=true }
@@ -18,8 +19,6 @@ zmq-sys = { git = "https://github.com/mcgoo/rust-zmq", branch = "vcpkg", optiona
 # always test against the vcpkg crate in this repo
 [patch.crates-io]
 vcpkg = { path = '../' }
-# TODO: roll back to upstream once PRs merged
-curl = { git = "https://github.com/micolous/curl-rust", branch = "vcpkg" }
 
 [patch.'https://github.com/mcgoo/vcpkg-rs']
 vcpkg = { path = '../' }

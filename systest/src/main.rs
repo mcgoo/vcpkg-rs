@@ -1,3 +1,4 @@
+#[cfg(feature = "curl")]
 extern crate curl;
 extern crate libz_sys;
 extern crate openssl_sys;
@@ -8,6 +9,7 @@ extern crate zmq_sys;
 use std::ffi::CStr;
 
 fn main() {
+    #[cfg(feature = "curl")]
     println!("curl version is {:?}!", curl::Version::get().version());
 
     unsafe {
