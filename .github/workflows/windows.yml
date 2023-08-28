@@ -111,7 +111,7 @@ jobs:
           echo dyn=${{ matrix.config.VCPKGRS_DYNAMIC }}
           if [ '${{ matrix.config.VCPKGRS_DYNAMIC }}' != '' ] ; then export VCPKGRS_DYNAMIC=1 ; fi
           ${VCPKG_ROOT}/vcpkg.exe install zlib zeromq openssl
-          if [ '${{ matrix.config.features }}' =~ 'curl' ]
+          if [ '${{ matrix.config.features }}' =~ 'curl' ]; then
             ${VCPKG_ROOT}/vcpkg.exe install curl
           fi
           cargo build --target ${{ matrix.config.target }} --all
