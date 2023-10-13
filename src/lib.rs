@@ -58,7 +58,7 @@
 //!
 //! * `VCPKG_INSTALLED_ROOT` - Set the directory for the vcpkg installed directory. Corresponding to
 //! `--x-install-root` flag in `vcpkg install` command.
-//! A typical use case is to set it to `vcpkg_installed` directory under build directory 
+//! A typical use case is to set it to `vcpkg_installed` directory under build directory
 //! to adapt [manifest mode of vcpkg](https://learn.microsoft.com/en-us/vcpkg/users/manifests).
 //! If set, this will override the default value of `VCPKG_ROOT/installed`.
 //!  
@@ -734,13 +734,13 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     // load updates to the status file that have yet to be normalized
     let status_update_dir = target.status_path.join("updates");
 
-    let paths = try!(fs::read_dir(&status_update_dir).map_err(
-        |e| Error::VcpkgInstallation(format!(
+    let paths = try!(
+        fs::read_dir(&status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
             "could not read status file updates dir ({}): {}",
             status_update_dir.display(),
             e
-        ))
-    ));
+        )))
+    );
 
     // get all of the paths of the update files into a Vec<PathBuf>
     let mut paths = try!(paths
@@ -1458,10 +1458,10 @@ mod tests {
 
     extern crate tempfile;
 
+    use self::tempfile::tempdir;
     use super::*;
     use std::env;
     use std::sync::Mutex;
-    use self::tempfile::tempdir;
 
     lazy_static! {
         static ref LOCK: Mutex<()> = Mutex::new(());
