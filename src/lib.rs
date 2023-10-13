@@ -1364,6 +1364,20 @@ fn detect_target_triplet() -> Result<TargetTriplet, Error> {
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
         })
+    } else if target == "wasm32-unknown-emscripten" {
+        Ok(TargetTriplet {
+            triplet: "wasm32-emscripten".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
+    } else if target == "wasm32-unknown-unknown" {
+        Ok(TargetTriplet {
+            triplet: "wasm32-emscripten".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
