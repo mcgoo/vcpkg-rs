@@ -13,13 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Run build
-        run: cargo build --verbose --target wasm-unknown-unknown
+        run: cargo build --verbose --target wasm32-unknown-unknown
       - name: Run unit tests
-        run: cargo test --verbose --target wasm-unknown-unknown
+        run: cargo test --verbose --target wasm32-unknown-unknown
       - name: Install vcpkg
         run: |
           git clone https://github.com/Microsoft/vcpkg.git vcp
           vcp/bootstrap-vcpkg.sh
       - name: Run integration tests
         run: |
-          tests/run.sh --target wasm-unknown-unknown
+          tests/run.sh --target wasm32-unknown-unknown
