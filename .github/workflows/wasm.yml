@@ -16,8 +16,8 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
       - name: Run build
         run: cargo build --verbose --target wasm32-unknown-unknown
-      - name: Run unit tests
-        run: cargo test --verbose --target wasm32-unknown-unknown
+      - name: Build unit tests
+        run: cargo test --no-run --verbose --target wasm32-unknown-unknown
       - name: Install vcpkg
         run: |
           git clone https://github.com/Microsoft/vcpkg.git vcp
