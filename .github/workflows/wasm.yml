@@ -1,0 +1,25 @@
+name: WASM
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "35 2 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run build
+        run: cargo build --verbose --target wasm-unknown-unknown
+      - name: Run unit tests
+        run: cargo test --verbose --target wasm-unknown-unknown
+      - name: Install vcpkg
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git vcp
+          vcp/bootstrap-vcpkg.sh
+      - name: Run integration tests
+        run: |
+          tests/run.sh --target wasm-unknown-unknown
