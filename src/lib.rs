@@ -46,6 +46,17 @@
 //! generate dynamically linked binaries, in which case you will have to arrange for
 //! dlls from your Vcpkg installation to be available in your path.
 //!
+//! ## WASM 32
+//! 
+//! At this time, vcpkg has a single triplet for wasm32, wasm32-emscripten,
+//! while rust has several targets for wasm32.
+//! Currently all of these targets are mapped to wasm32-emscripten triplet.
+//! 
+//! You can open an [issue](https://github.com/mcgoo/vcpkg-rs/issue)
+//! if more wasm32 triplets come to vcpkg. 
+//! And just like other target, it is possibleto select a custom triplet 
+//! using the `VCPKGRS_TRIPLET` environment variable.
+//! 
 //! # Environment variables
 //!
 //! A number of environment variables are available to globally configure which
@@ -58,7 +69,7 @@
 //!
 //! * `VCPKG_INSTALLED_ROOT` - Set the directory for the vcpkg installed directory. Corresponding to
 //! `--x-install-root` flag in `vcpkg install` command.
-//! A typical use case is to set it to `vcpkg_installed` directory under build directory 
+//! A typical use case is to set it to `vcpkg_installed` directory under build directory
 //! to adapt [manifest mode of vcpkg](https://learn.microsoft.com/en-us/vcpkg/users/manifests).
 //! If set, this will override the default value of `VCPKG_ROOT/installed`.
 //!  
@@ -734,13 +745,13 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     // load updates to the status file that have yet to be normalized
     let status_update_dir = target.status_path.join("updates");
 
-    let paths = try!(fs::read_dir(&status_update_dir).map_err(
-        |e| Error::VcpkgInstallation(format!(
+    let paths = try!(
+        fs::read_dir(&status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
             "could not read status file updates dir ({}): {}",
             status_update_dir.display(),
             e
-        ))
-    ));
+        )))
+    );
 
     // get all of the paths of the update files into a Vec<PathBuf>
     let mut paths = try!(paths
@@ -1364,6 +1375,13 @@ fn detect_target_triplet() -> Result<TargetTriplet, Error> {
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
         })
+    } else if target.starts_with("wasm32-") {
+        Ok(TargetTriplet {
+            triplet: "wasm32-emscripten".into(),
+            is_static: true,
+            lib_suffix: "a".into(),
+            strip_lib_prefix: true,
+        })
     } else if !target.contains("-pc-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
@@ -1444,10 +1462,10 @@ mod tests {
 
     extern crate tempfile;
 
+    use self::tempfile::tempdir;
     use super::*;
     use std::env;
     use std::sync::Mutex;
-    use self::tempfile::tempdir;
 
     lazy_static! {
         static ref LOCK: Mutex<()> = Mutex::new(());
