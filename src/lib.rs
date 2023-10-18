@@ -46,6 +46,17 @@
 //! generate dynamically linked binaries, in which case you will have to arrange for
 //! dlls from your Vcpkg installation to be available in your path.
 //!
+//! ## WASM 32
+//! 
+//! At this time, vcpkg has a single triplet for wasm32, wasm32-emscripten,
+//! while rust has several targets for wasm32.
+//! Currently all of these targets are mapped to wasm32-emscripten triplet.
+//! 
+//! You can open an [issue](https://github.com/mcgoo/vcpkg-rs/issue)
+//! if more wasm32 triplets come to vcpkg. 
+//! And just like other target, it is possibleto select a custom triplet 
+//! using the `VCPKGRS_TRIPLET` environment variable.
+//! 
 //! # Environment variables
 //!
 //! A number of environment variables are available to globally configure which
