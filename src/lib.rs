@@ -600,7 +600,7 @@ impl PcFiles {
     }
     /// Locate which PcFile contains this library, if any.
     fn locate_pc_file_by_lib(&self, lib: &str) -> Option<&PcFile> {
-        for (id, pc_file) in &self.files {
+        for (_, pc_file) in &self.files {
             if pc_file.libs.contains(&lib.to_owned()) {
                 return Some(pc_file);
             }
