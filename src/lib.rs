@@ -426,11 +426,11 @@ fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<Vcp
     let packages_path = vcpkg_root.join("packages");
 
     Ok(VcpkgTarget {
-        lib_path: lib_path,
-        bin_path: bin_path,
-        include_path: include_path,
-        status_path: status_path,
-        packages_path: packages_path,
+        lib_path,
+        bin_path,
+        include_path,
+        status_path,
+        packages_path,
         target_triplet: target_triplet.clone(),
     })
 }
@@ -517,8 +517,8 @@ impl PcFile {
 
         Ok(PcFile {
             id: id.to_string(),
-            libs: libs,
-            deps: deps,
+            libs,
+            deps,
         })
     }
 }
@@ -552,7 +552,7 @@ impl PcFiles {
             let pc_file = PcFile::parse_pc_file(vcpkg_target, &dir_entry.path())?;
             files.insert(pc_file.id.to_owned(), pc_file);
         }
-        Ok(PcFiles { files: files })
+        Ok(PcFiles { files })
     }
     /// Use the .pc files as a hint to the library sort order.
     fn fix_ordering(&self, mut libs: Vec<String>) -> Vec<String> {
@@ -809,7 +809,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                         let port = Port {
                             dlls: lib_info.0,
                             libs: lib_info.1,
-                            deps: deps,
+                            deps,
                         };
 
                         ports.insert(name.to_string(), port);
@@ -1316,7 +1316,7 @@ impl Library {
             dll_paths: Vec::new(),
             include_paths: Vec::new(),
             cargo_metadata: Vec::new(),
-            is_static: is_static,
+            is_static,
             found_dlls: Vec::new(),
             found_libs: Vec::new(),
             found_names: Vec::new(),
