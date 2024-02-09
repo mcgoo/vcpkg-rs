@@ -1347,7 +1347,7 @@ impl Library {
             found_names: Vec::new(),
             ports: Vec::new(),
             vcpkg_triplet: vcpkg_triplet.to_string(),
-            version,
+            version: version,
         }
     }
 }
