@@ -853,7 +853,7 @@ struct VcpkgTarget {
 }
 
 impl VcpkgTarget {
-    fn link_name_for_lib(&self, filename: &std::path::Path) -> Option<String> {
+    fn link_name_for_lib(&self, filename: &Path) -> Option<String> {
         if self.target_triplet.strip_lib_prefix {
             filename.to_str().map(|s| s.to_owned())
         // filename
@@ -1468,14 +1468,14 @@ mod tests {
         let _g = LOCK.lock();
         env::set_var("VCPKG_ROOT", "/");
         env::set_var("TARGET", "x86_64-pc-windows-gnu");
-        assert!(match ::probe_package("foo") {
+        assert!(match probe_package("foo") {
             Err(Error::NotMSVC) => true,
             _ => false,
         });
 
         env::set_var("TARGET", "x86_64-pc-windows-gnu");
         assert_eq!(env::var("TARGET"), Ok("x86_64-pc-windows-gnu".to_string()));
-        assert!(match ::probe_package("foo") {
+        assert!(match probe_package("foo") {
             Err(Error::NotMSVC) => true,
             _ => false,
         });
@@ -1496,7 +1496,7 @@ mod tests {
             "NO_VCPKG",
         ] {
             env::set_var(var, "1");
-            assert!(match ::probe_package("foo") {
+            assert!(match probe_package("foo") {
                 Err(Error::DisabledByEnv(ref v)) if v == var => true,
                 _ => false,
             });
@@ -1514,8 +1514,8 @@ mod tests {
     //     clean_env();
     //     env::set_var("VCPKG_ROOT", vcpkg_test_tree_loc("no-status"));
     //     env::set_var("TARGET", "x86_64-pc-windows-msvc");
-    //     println!("Result is {:?}", ::find_package("libmysql"));
-    //     assert!(match ::find_package("libmysql") {
+    //     println!("Result is {:?}", find_package("libmysql"));
+    //     assert!(match find_package("libmysql") {
     //         Err(Error::RequiredEnvMissing(ref v)) if v == "VCPKGRS_DYNAMIC" => true,
     //         _ => false,
     //     });
@@ -1535,8 +1535,8 @@ mod tests {
         // RUSTFLAGS=-Ctarget-feature=+crt-static. It would
         //  be nice to test that also.
         env::set_var("CARGO_CFG_TARGET_FEATURE", "crt-static");
-        println!("Result is {:?}", ::find_package("libmysql"));
-        assert!(match ::find_package("libmysql") {
+        println!("Result is {:?}", find_package("libmysql"));
+        assert!(match find_package("libmysql") {
             Ok(_) => true,
             _ => false,
         });
@@ -1553,8 +1553,8 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        println!("Result is {:?}", ::find_package("libmysql"));
-        assert!(match ::find_package("libmysql") {
+        println!("Result is {:?}", find_package("libmysql"));
+        assert!(match find_package("libmysql") {
             Ok(_) => true,
             _ => false,
         });
@@ -1571,8 +1571,8 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        println!("Result is {:?}", ::find_package("graphite2"));
-        assert!(match ::find_package("graphite2") {
+        println!("Result is {:?}", find_package("graphite2"));
+        assert!(match find_package("graphite2") {
             Ok(_) => true,
             _ => false,
         });
@@ -1589,8 +1589,8 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        println!("Result is {:?}", ::find_package("harfbuzz"));
-        assert!(match ::find_package("harfbuzz") {
+        println!("Result is {:?}", find_package("harfbuzz"));
+        assert!(match find_package("harfbuzz") {
             Ok(lib) => lib
                 .cargo_metadata
                 .iter()
@@ -1618,8 +1618,8 @@ mod tests {
             let tmp_dir = tempdir().unwrap();
             env::set_var("OUT_DIR", tmp_dir.path());
 
-            println!("Result is {:?}", ::find_package("harfbuzz"));
-            assert!(match ::find_package("harfbuzz") {
+            println!("Result is {:?}", find_package("harfbuzz"));
+            assert!(match find_package("harfbuzz") {
                 Ok(lib) => lib
                     .cargo_metadata
                     .iter()
@@ -1641,7 +1641,7 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        let lib = ::find_package("harfbuzz").unwrap();
+        let lib = find_package("harfbuzz").unwrap();
 
         check_before(&lib, "freetype", "zlib");
         check_before(&lib, "freetype", "bzip2");
@@ -1682,7 +1682,7 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        let harfbuzz = ::Config::new()
+        let harfbuzz = Config::new()
             // For the sake of testing, force this build to try to
             // link to the arm64-osx libraries in preference to the
             // default of arm64-ios.
@@ -1705,12 +1705,12 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        let harfbuzz = ::find_package("harfbuzz");
+        let harfbuzz = find_package("harfbuzz");
         println!("Result with inference is {:?}", &harfbuzz);
         assert!(harfbuzz.is_err());
 
         env::set_var("VCPKGRS_TRIPLET", "x64-osx");
-        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        let harfbuzz = find_package("harfbuzz").unwrap();
         println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
         assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
         clean_env();
@@ -1727,12 +1727,12 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         env::set_var("OUT_DIR", tmp_dir.path());
 
-        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        let harfbuzz = find_package("harfbuzz").unwrap();
         println!("Result with inference is {:?}", &harfbuzz);
         assert_eq!(harfbuzz.vcpkg_triplet, "arm64-ios");
 
         env::set_var("VCPKGRS_TRIPLET", "x64-osx");
-        let harfbuzz = ::find_package("harfbuzz").unwrap();
+        let harfbuzz = find_package("harfbuzz").unwrap();
         println!("Result with setting VCPKGRS_TRIPLET is {:?}", &harfbuzz);
         assert_eq!(harfbuzz.vcpkg_triplet, "x64-osx");
         clean_env();
@@ -1746,8 +1746,8 @@ mod tests {
     //     env::set_var("VCPKGRS_DYNAMIC", "1");
     //     env::set_var("VCPKGRS_NO_LIBMYSQL", "1");
 
-    //     println!("Result is {:?}", ::find_package("libmysql"));
-    //     assert!(match ::find_package("libmysql") {
+    //     println!("Result is {:?}", find_package("libmysql"));
+    //     assert!(match find_package("libmysql") {
     //         Err(Error::DisabledByEnv(ref v)) if v == "VCPKGRS_NO_LIBMYSQL" => true,
     //         _ => false,
     //     });
@@ -1762,8 +1762,8 @@ mod tests {
     //     env::set_var("VCPKGRS_DYNAMIC", "1");
     //     env::set_var("VCPKGRS_DISABLE", "1");
 
-    //     println!("Result is {:?}", ::find_package("libmysql"));
-    //     assert!(match ::find_package("libmysql") {
+    //     println!("Result is {:?}", find_package("libmysql"));
+    //     assert!(match find_package("libmysql") {
     //         Err(Error::DisabledByEnv(ref v)) if v == "VCPKGRS_DISABLE" => true,
     //         _ => false,
     //     });
