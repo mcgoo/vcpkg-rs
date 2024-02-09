@@ -329,10 +329,10 @@ pub fn find_vcpkg_root(cfg: &Config) -> Result<PathBuf, Error> {
             let file = BufReader::new(&file);
 
             for line in file.lines() {
-                let line = try!(line.map_err(|_| Error::VcpkgNotFound(format!(
+                let line = line.map_err(|_| Error::VcpkgNotFound(format!(
                     "Parsing of {} failed.",
                     vcpkg_user_targets_path.to_string_lossy().to_owned()
-                ))));
+                )))?;
                 let mut split = line.split("Project=\"");
                 split.next(); // eat anything before Project="
                 if let Some(found) = split.next() {
@@ -407,8 +407,8 @@ fn validate_vcpkg_root(path: &PathBuf) -> Result<(), Error> {
 }
 
 fn find_vcpkg_target(cfg: &Config, target_triplet: &TargetTriplet) -> Result<VcpkgTarget, Error> {
-    let vcpkg_root = try!(find_vcpkg_root(&cfg));
-    try!(validate_vcpkg_root(&vcpkg_root));
+    let vcpkg_root = find_vcpkg_root(&cfg)?;
+    validate_vcpkg_root(&vcpkg_root)?;
 
     let mut base = cfg
         .vcpkg_installed_root
@@ -448,21 +448,21 @@ struct PcFile {
 impl PcFile {
     fn parse_pc_file(vcpkg_target: &VcpkgTarget, path: &Path) -> Result<Self, Error> {
         // Extract the pkg-config name.
-        let id = try!(path
+        let id = path
             .file_stem()
             .ok_or_else(|| Error::VcpkgInstallation(format!(
                 "pkg-config file {} has bogus name",
                 path.to_string_lossy()
-            ))))
+            )))?
         .to_string_lossy();
         // Read through the file and gather what we want.
-        let mut file = try!(File::open(path)
-            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't open {}", path.display()))));
+        let mut file = File::open(path)
+            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't open {}", path.display())))?;
         let mut pc_file_contents = String::new();
 
-        try!(file
+        file
             .read_to_string(&mut pc_file_contents)
-            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't read {}", path.display()))));
+            .map_err(|_| Error::VcpkgInstallation(format!("Couldn't read {}", path.display())))?;
         PcFile::from_str(&id, &pc_file_contents, &vcpkg_target.target_triplet)
     }
     fn from_str(id: &str, s: &str, target_triplet: &TargetTriplet) -> Result<Self, Error> {
@@ -531,25 +531,25 @@ struct PcFiles {
 impl PcFiles {
     fn load_pkgconfig_dir(vcpkg_target: &VcpkgTarget, path: &PathBuf) -> Result<Self, Error> {
         let mut files = HashMap::new();
-        for dir_entry in try!(path.read_dir().map_err(|e| {
+        for dir_entry in path.read_dir().map_err(|e| {
             Error::VcpkgInstallation(format!(
                 "Missing pkgconfig directory {}: {}",
                 path.to_string_lossy(),
                 e
             ))
-        })) {
-            let dir_entry = try!(dir_entry.map_err(|e| {
+        })? {
+            let dir_entry = dir_entry.map_err(|e| {
                 Error::VcpkgInstallation(format!(
                     "Troubling reading pkgconfig dir {}: {}",
                     path.to_string_lossy(),
                     e
                 ))
-            }));
+            })?;
             // Only look at .pc files.
             if dir_entry.path().extension() != Some(OsStr::new("pc")) {
                 continue;
             }
-            let pc_file = try!(PcFile::parse_pc_file(vcpkg_target, &dir_entry.path()));
+            let pc_file = PcFile::parse_pc_file(vcpkg_target, &dir_entry.path())?;
             files.insert(pc_file.id.to_owned(), pc_file);
         }
         Ok(PcFiles { files: files })
@@ -635,12 +635,10 @@ fn load_port_manifest(
     let mut dlls = Vec::new();
     let mut libs = Vec::new();
 
-    let f = try!(
-        File::open(&manifest_file).map_err(|_| Error::VcpkgInstallation(format!(
-            "Could not open port manifest file {}",
-            manifest_file.display()
-        )))
-    );
+    let f = File::open(&manifest_file).map_err(|_| Error::VcpkgInstallation(format!(
+        "Could not open port manifest file {}",
+        manifest_file.display()
+    )))?;
 
     let file = BufReader::new(&f);
 
@@ -691,13 +689,11 @@ fn load_port_file(
     filename: &PathBuf,
     port_info: &mut Vec<BTreeMap<String, String>>,
 ) -> Result<(), Error> {
-    let f = try!(
-        File::open(&filename).map_err(|e| Error::VcpkgInstallation(format!(
-            "Could not open status file at {}: {}",
-            filename.display(),
-            e
-        )))
-    );
+    let f = File::open(&filename).map_err(|e| Error::VcpkgInstallation(format!(
+        "Could not open status file at {}: {}",
+        filename.display(),
+        e
+    )))?;
     let file = BufReader::new(&f);
     let mut current: BTreeMap<String, String> = BTreeMap::new();
     for line in file.lines() {
@@ -745,16 +741,14 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     // load updates to the status file that have yet to be normalized
     let status_update_dir = target.status_path.join("updates");
 
-    let paths = try!(
-        fs::read_dir(&status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
-            "could not read status file updates dir ({}): {}",
-            status_update_dir.display(),
-            e
-        )))
-    );
+    let paths = fs::read_dir(&status_update_dir).map_err(|e| Error::VcpkgInstallation(format!(
+        "could not read status file updates dir ({}): {}",
+        status_update_dir.display(),
+        e
+    )))?;
 
     // get all of the paths of the update files into a Vec<PathBuf>
-    let mut paths = try!(paths
+    let mut paths = paths
         .map(|rde| rde.map(|de| de.path())) // Result<DirEntry, io::Error> -> Result<PathBuf, io::Error>
         .collect::<Result<Vec<_>, _>>() // collect into Result<Vec<PathBuf>, io::Error>
         .map_err(|e| {
@@ -762,7 +756,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                 "could not read status file update filenames: {}",
                 e
             ))
-        }));
+        })?;
 
     // Sort the paths and read them. This could be done directly from the iterator if
     // read_dir() guarantees that the files will be read in alpha order but that appears
@@ -771,7 +765,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
     paths.sort();
     for path in paths {
         //       println!("Name: {}", path.display());
-        try!(load_port_file(&path, &mut port_info));
+        load_port_file(&path, &mut port_info)?;
     }
     //println!("{:#?}", port_info);
 
@@ -806,12 +800,12 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                 match (current.get("Version"), feature) {
                     (Some(version), _) => {
                         // this failing here and bailing out causes everything to fail
-                        let lib_info = try!(load_port_manifest(
+                        let lib_info = load_port_manifest(
                             &target.status_path,
                             &name,
                             version,
                             &target
-                        ));
+                        )?;
                         let port = Port {
                             dlls: lib_info.0,
                             libs: lib_info.1,
@@ -885,7 +879,7 @@ impl Config {
             let target = if let Ok(triplet_str) = env::var("VCPKGRS_TRIPLET") {
                 triplet_str.into()
             } else {
-                try!(detect_target_triplet())
+                detect_target_triplet()?
             };
             self.target = Some(target);
         }
@@ -904,7 +898,7 @@ impl Config {
     pub fn find_package(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(self.get_target_triplet());
+        let msvc_target = self.get_target_triplet()?;
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -928,13 +922,13 @@ impl Config {
             return Err(Error::DisabledByEnv(abort_var_name));
         }
 
-        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
+        let vcpkg_target = find_vcpkg_target(&self, &msvc_target)?;
         let mut required_port_order = Vec::new();
 
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
-            let ports = try!(load_ports(&vcpkg_target));
+            let ports = load_ports(&vcpkg_target)?;
 
             if ports.get(&port_name.to_owned()).is_none() {
                 return Err(Error::LibNotFound(format!(
@@ -1047,10 +1041,10 @@ impl Config {
 
         lib.ports = required_port_order;
 
-        try!(self.emit_libs(&mut lib, &vcpkg_target));
+        self.emit_libs(&mut lib, &vcpkg_target)?;
 
         if self.copy_dlls {
-            try!(self.do_dll_copy(&mut lib));
+            self.do_dll_copy(&mut lib)?;
         }
 
         if self.cargo_metadata {
@@ -1116,7 +1110,7 @@ impl Config {
     pub fn probe(&mut self, port_name: &str) -> Result<Library, Error> {
         // determine the target type, bailing out if it is not some
         // kind of msvc
-        let msvc_target = try!(self.get_target_triplet());
+        let msvc_target = self.get_target_triplet()?;
 
         // bail out if requested to not try at all
         if env::var_os("VCPKGRS_DISABLE").is_some() {
@@ -1147,7 +1141,7 @@ impl Config {
             self.required_dlls.push(port_name.to_owned());
         }
 
-        let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
+        let vcpkg_target = find_vcpkg_target(&self, &msvc_target)?;
 
         // require explicit opt-in before using dynamically linked
         // variants, otherwise cargo install of various things will
@@ -1189,10 +1183,10 @@ impl Config {
             lib.dll_paths.push(vcpkg_target.bin_path.clone());
         }
 
-        try!(self.emit_libs(&mut lib, &vcpkg_target));
+        self.emit_libs(&mut lib, &vcpkg_target)?;
 
         if self.copy_dlls {
-            try!(self.do_dll_copy(&mut lib));
+            self.do_dll_copy(&mut lib)?;
         }
 
         if self.cargo_metadata {
@@ -1250,13 +1244,11 @@ impl Config {
                 for file in &lib.found_dlls {
                     let mut dest_path = Path::new(target_dir.as_os_str()).to_path_buf();
                     dest_path.push(Path::new(file.file_name().unwrap()));
-                    try!(
-                        fs::copy(file, &dest_path).map_err(|_| Error::LibNotFound(format!(
-                            "Can't copy file {} to {}",
-                            file.to_string_lossy(),
-                            dest_path.to_string_lossy()
-                        )))
-                    );
+                    fs::copy(file, &dest_path).map_err(|_| Error::LibNotFound(format!(
+                        "Can't copy file {} to {}",
+                        file.to_string_lossy(),
+                        dest_path.to_string_lossy()
+                    )))?;
                     println!(
                         "vcpkg build helper copied {} to {}",
                         file.to_string_lossy(),
