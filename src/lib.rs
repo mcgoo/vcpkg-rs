@@ -948,14 +948,6 @@ impl Config {
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
-            // if ports.get(&port_name.to_owned()).is_none() {
-            //     return Err(Error::LibNotFound(format!(
-            //         "package {} is not installed for vcpkg triplet {}",
-            //         port_name.to_owned(),
-            //         vcpkg_target.target_triplet.triplet
-            //     )));
-            // }
-
             // the complete set of ports required
             let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
             // working of ports that we need to include
