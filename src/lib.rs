@@ -1340,7 +1340,7 @@ fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
 impl Library {
     fn new(is_static: bool, vcpkg_triplet: &str, version: String) -> Library {
         Library {
-            _non_exhaustive: (),
+            __non_exhaustive: (),
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
             include_paths: Vec::new(),
