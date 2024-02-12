@@ -158,6 +158,9 @@ pub struct Config {
 /// Details of a package that was found
 #[derive(Clone, Debug)]
 pub struct Library {
+    /// Ensure this struct can't be matched exhaustively/constructed from external code
+    __non_exhaustive: (),
+
     /// Paths for the linker to search for static or import libraries
     pub link_paths: Vec<PathBuf>,
 
@@ -1337,6 +1340,7 @@ fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
 impl Library {
     fn new(is_static: bool, vcpkg_triplet: &str, version: String) -> Library {
         Library {
+            _non_exhaustive: (),
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
             include_paths: Vec::new(),
