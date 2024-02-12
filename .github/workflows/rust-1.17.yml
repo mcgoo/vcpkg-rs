@@ -36,5 +36,5 @@ jobs:
       - name: Run build
         run: cargo build --verbose
       # tests can't be run because they use ONCE which needs a newer compiler
-      - name: Run unit tests
-        run: cargo test --verbose
+      # - name: Run unit tests
+      #   run: cargo test --verbose
