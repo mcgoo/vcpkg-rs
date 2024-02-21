@@ -936,7 +936,7 @@ impl Config {
         if self.required_libs.is_empty() {
             let ports = try!(load_ports(&vcpkg_target));
 
-            if ports.get(&port_name.to_owned()).is_none() {
+            if !ports.contains_key(port_name) {
                 return Err(Error::LibNotFound(format!(
                     "package {} is not installed for vcpkg triplet {}",
                     port_name.to_owned(),
