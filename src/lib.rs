@@ -1382,7 +1382,7 @@ fn detect_target_triplet() -> Result<TargetTriplet, Error> {
             lib_suffix: "a".into(),
             strip_lib_prefix: true,
         })
-    } else if !target.contains("-pc-windows-msvc") {
+    } else if !target.contains("-pc-windows-msvc") && !target.contains("-win7-windows-msvc") {
         Err(Error::NotMSVC)
     } else if target.starts_with("x86_64-") {
         if is_static {
