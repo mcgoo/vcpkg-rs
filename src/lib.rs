@@ -156,8 +156,11 @@ pub struct Config {
 }
 
 /// Details of a package that was found
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Library {
+    /// Ensure this struct can't be matched exhaustively/constructed from external code
+    __non_exhaustive: (),
+
     /// Paths for the linker to search for static or import libraries
     pub link_paths: Vec<PathBuf>,
 
@@ -187,6 +190,9 @@ pub struct Library {
 
     /// the vcpkg triplet that has been selected
     pub vcpkg_triplet: String,
+
+    /// The library version that has been selected
+    pub version: String,
 }
 
 #[derive(Clone)]
@@ -619,6 +625,7 @@ struct Port {
 
     // ports that this port depends on
     deps: Vec<String>,
+    version: String,
 }
 
 fn load_port_manifest(
@@ -816,6 +823,7 @@ fn load_ports(target: &VcpkgTarget) -> Result<BTreeMap<String, Port>, Error> {
                             dlls: lib_info.0,
                             libs: lib_info.1,
                             deps: deps,
+                            version: version.clone(),
                         };
 
                         ports.insert(name.to_string(), port);
@@ -931,19 +939,19 @@ impl Config {
         let vcpkg_target = try!(find_vcpkg_target(&self, &msvc_target));
         let mut required_port_order = Vec::new();
 
+        let ports = try!(load_ports(&vcpkg_target));
+        let version = match ports.get(&port_name.to_owned()) {
+            Some(port) => port.version.clone(),
+            None => return Err(Error::LibNotFound(format!(
+                "package {} is not installed for vcpkg triplet {}",
+                port_name.to_owned(),
+                vcpkg_target.target_triplet.triplet,
+            ))),
+        };
+      
         // if no overrides have been selected, then the Vcpkg port name
         // is the the .lib name and the .dll name
         if self.required_libs.is_empty() {
-            let ports = try!(load_ports(&vcpkg_target));
-
-            if !ports.contains_key(port_name) {
-                return Err(Error::LibNotFound(format!(
-                    "package {} is not installed for vcpkg triplet {}",
-                    port_name.to_owned(),
-                    vcpkg_target.target_triplet.triplet
-                )));
-            }
-
             // the complete set of ports required
             let mut required_ports: BTreeMap<String, Port> = BTreeMap::new();
             // working of ports that we need to include
@@ -1005,6 +1013,7 @@ impl Config {
                 }
             }
         }
+
         // require explicit opt-in before using dynamically linked
         // variants, otherwise cargo install of various things will
         // stop working if Vcpkg is installed.
@@ -1015,6 +1024,7 @@ impl Config {
         let mut lib = Library::new(
             vcpkg_target.target_triplet.is_static,
             &vcpkg_target.target_triplet.triplet,
+            version,
         );
 
         if self.emit_includes {
@@ -1156,9 +1166,20 @@ impl Config {
             return Err(Error::RequiredEnvMissing("VCPKGRS_DYNAMIC".to_owned()));
         }
 
+        let ports = try!(load_ports(&vcpkg_target));
+        let version = match ports.get(&port_name.to_owned()) {
+            Some(port) => port.version.clone(),
+            None => return Err(Error::LibNotFound(format!(
+                "package {} is not installed for vcpkg triplet {}",
+                port_name.to_owned(),
+                vcpkg_target.target_triplet.triplet,
+            ))),
+        };
+
         let mut lib = Library::new(
             vcpkg_target.target_triplet.is_static,
             &vcpkg_target.target_triplet.triplet,
+            version,
         );
 
         if self.emit_includes {
@@ -1318,8 +1339,9 @@ fn remove_item(cont: &mut Vec<String>, item: &String) -> Option<String> {
 }
 
 impl Library {
-    fn new(is_static: bool, vcpkg_triplet: &str) -> Library {
+    fn new(is_static: bool, vcpkg_triplet: &str, version: String) -> Library {
         Library {
+            __non_exhaustive: (),
             link_paths: Vec::new(),
             dll_paths: Vec::new(),
             include_paths: Vec::new(),
@@ -1330,6 +1352,7 @@ impl Library {
             found_names: Vec::new(),
             ports: Vec::new(),
             vcpkg_triplet: vcpkg_triplet.to_string(),
+            version: version,
         }
     }
 }
